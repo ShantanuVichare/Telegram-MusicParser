@@ -51,9 +51,7 @@ def debug(update: Update, context: CallbackContext):
     """
     update.message.reply_text(os.getcwd())
     context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING, timeout=15)
-    msg = update.message.reply_text("Hello")
-    time.sleep(5)
-    msg.edit_text("Hello Again!")
+    if len(context.args)>0: DebugCommandHandler(Manager(update, context), update.message.reply_text, context.args[0])
 
 def download_only(update: Update, context: CallbackContext):
     """ To only download files on user directory """
@@ -65,7 +63,7 @@ def download_only(update: Update, context: CallbackContext):
 def generate_response(update: Update, context: CallbackContext):
     """Respond to user message."""
     user_text = update.message.text
-    if ('open.spotify.com' in user_text) or ('youtube.com' in user_text) or (update.message.via_bot):
+    if ('open.spotify.com' in user_text) or ('youtube.com' in user_text) or ('youtu.be' in user_text) or (update.message.via_bot):
         m = Manager(update,context)
         is_query = update.message.via_bot and update.message.via_bot.is_bot
         m.begin(user_text, is_query)
@@ -80,8 +78,9 @@ def search_retrieve(update: Update, context: CallbackContext):
 
 def error(update: Update, context: CallbackContext):
     """Log Errors caused by Updates."""
-    print('Update "%s" caused error "%s"', update, context.error)
-    # logger.warning('Update "%s" caused error "%s"', update, context.error)
+    update.message.reply_text('I f***ed up 😅\nPlease contact my owner')
+    print(f"Message Text: {update.message.text}\nCaused error: {context.error}")
+    # logger.warning(f"Message Text: {update.message.text}\nCaused error: {context.error}")
 
 def inlinequery(update: Update, context: CallbackContext):
     """Handle the inline query."""
@@ -89,4 +88,21 @@ def inlinequery(update: Update, context: CallbackContext):
     if ('open.spotify.com' in inline_query) or ('youtube.com' in inline_query):
         # update.inline_query.answer(results = [], switch_pm_text="Tap here to Download Now!", switch_pm_parameter="inline")
         pass
+
+class DebugCommandHandler :
+    def __init__(self, manager: Manager, reply_func, command_text: str) -> None:
+        self.m = manager
+        commands = {
+            'list': self.list_files,
+            'reset': self.reset_files
+        }
+        reply_text = commands[command_text]()
+        reply_func(reply_text)
+    
+    def list_files(self) -> str:
+        return os.listdir(self.m.storage.DOWNLOAD_PATH)
+
+    def reset_files(self) -> str:
+        self.m.storage.reset_directory()
+        return os.listdir(self.m.storage.DOWNLOAD_PATH)
 

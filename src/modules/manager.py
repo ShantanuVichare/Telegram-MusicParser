@@ -36,7 +36,7 @@ class Manager:
 
         if is_query:
             self.songs = [Song.from_query(request_text)]
-            msg = self.interact(text="Identified a bot query")
+            msg = self.interact(text="Identified a search query")
         elif SPOTIFY_TRACK in request_text:
             self.songs = self.spotify.get_song(song_link=request_text)
             msg = self.interact(text="Identified a Spotify track")
@@ -55,7 +55,7 @@ class Manager:
         
         self.storage.clean_files()
 
-        msg = self.interact(msg=msg, text="Downloading {} song(s)".format(len(self.songs)))
+        if (len(self.songs)>1): msg = self.interact(msg=msg, text="Downloading {} songs".format(len(self.songs)))
 
         for song in self.songs:
             t = threading.Thread(target=Manager.my_thread, args=(self,song))
@@ -64,8 +64,8 @@ class Manager:
 
         try:
             while any([t.is_alive() for t in self.threads]):
-                time.sleep(5)
-                msg = self.interact(msg=msg,text="Remaining song(s) {}/{}".format(sum([t.is_alive() for t in self.threads]),len(self.songs)),action=ChatAction.TYPING)
+                time.sleep(2)
+                if (len(self.songs)>1): msg = self.interact(msg=msg,text="Remaining songs {}/{}".format(sum([t.is_alive() for t in self.threads]),len(self.songs)),action=ChatAction.TYPING)
         except:
             print("Updating failed!")
 
@@ -76,9 +76,9 @@ class Manager:
         
         msg.delete()
         if self.upload_to_chat:
-            self.interact(text="Retrieved {}/{} song(s)".format(len([True for song in self.songs if song.message=='Upload completed']),len(self.songs)))
+            if (len(self.songs)>1): self.interact(text="Retrieved {}/{} songs".format(len([True for song in self.songs if song.message=='Upload completed']),len(self.songs)))
         else:
-            self.interact(text="Downloaded {}/{} song(s)".format(len([True for song in self.songs if song.message=='Download completed']),len(self.songs)))
+            if (len(self.songs)>1): self.interact(text="Downloaded {}/{} songs".format(len([True for song in self.songs if song.message=='Download completed']),len(self.songs)))
         
         print('Song Messages:\n','\n\t'.join([song.message+' - '+song.get_display_name() for song in self.songs]))
 
@@ -89,7 +89,7 @@ class Manager:
 
         myself.thread_access.acquire()
         logs = []
-        downloader = Downloader(DOWNLOAD_PATH, logging_func=logs.append)
+        downloader = Downloader(DOWNLOAD_PATH, logger=logs.append)
         log = logs.append
         try:
             log("Searching: "+song.get_display_name())
@@ -120,14 +120,14 @@ class Manager:
                 # Download Timeout
                 start_time = time.time()
                 while not myself.storage.find_file(song):
-                    if time.time() - start_time >= 1800: # Timeout of 30 mins
+                    if time.time() - start_time >= 300: # Timeout of 5 mins
                         break
-                    msg = myself.interact(msg=msg,text="Downloading (/) : "+song.get_display_name(),action=ChatAction.TYPING)
-                    time.sleep(5)
-                    msg = myself.interact(msg=msg,text="Downloading (-) : "+song.get_display_name(),action=ChatAction.TYPING)
-                    time.sleep(5)
-                    msg = myself.interact(msg=msg,text="Downloading (\) : "+song.get_display_name(),action=ChatAction.TYPING)
-                    time.sleep(5)
+                    msg = myself.interact(msg=msg,text="Downloading (🙅‍♂️) : "+song.get_display_name(),action=ChatAction.TYPING)
+                    time.sleep(1)
+                    msg = myself.interact(msg=msg,text="Downloading (🙆‍♂️) : "+song.get_display_name(),action=ChatAction.TYPING)
+                    time.sleep(1)
+                    msg = myself.interact(msg=msg,text="Downloading (🤷‍♂️) : "+song.get_display_name(),action=ChatAction.TYPING)
+                    time.sleep(1)
 
             # Verify completion
             if not myself.storage.find_file(song):
@@ -170,7 +170,7 @@ class Manager:
         self.lock.release()
 
         if (self.upload_to_chat is True) and (filename is not None):
-            self.context.bot.send_document(chat_id=self.update.effective_chat.id, timeout=300, document=open(filename, 'rb'))
+            self.context.bot.send_document(chat_id=self.update.effective_chat.id, timeout=600, document=open(filename, 'rb'))
 
         # self.lock.release()
         return msg

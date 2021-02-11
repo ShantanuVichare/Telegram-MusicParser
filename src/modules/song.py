@@ -1,3 +1,4 @@
+
 class Song:
     def __init__(self) -> None:
         self.name = None
@@ -33,7 +34,7 @@ class Song:
     def get_search_query(self):
         if self.query is not None:
             return self.query
-        return self.name + ' - Audio Lyrics - ' + ', '.join([artist for artist in self.artists])
+        return self.name + ' - Audio - ' + ', '.join([artist for artist in self.artists])
 
     def get_display_name(self) -> str:
         try:

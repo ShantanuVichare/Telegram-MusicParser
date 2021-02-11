@@ -43,7 +43,7 @@ class Storage:
         return
 
     def reset_directory(self):
-        for fp in self.get_downloaded_filepaths(self.DOWNLOAD_PATH): os.remove(fp)
+        for fp in self.get_downloaded_filepaths(): os.remove(fp)
         self.index = {SELF:{FILENAME_FIELD: INDEX_FILENAME, TIMESTAMP_FIELD: datetime.utcnow().isoformat()}}
         self.save_index()
         return
