@@ -34,7 +34,7 @@ class Spotify:
         spotify = self.client
         while song_link is None:
             if song_name == None:
-                song_name = input('Enter song search query:')
+                raise Exception('Song search query missing')
             results = spotify.search(q=song_name, type='track')
             songs = [Song.from_spotify_track(song) for song in results['tracks']['items']]
             print('\n'.join([str(i+1)+'. '+ song.get_display_name() for i,song in enumerate(songs)]))

@@ -44,7 +44,7 @@ def main():
         if APP_NAME is None:
             raise Exception('App Name not set')
         updater.start_webhook(listen="0.0.0.0", port=int(PORT), url_path=TOKEN)
-        webhook_status = updater.bot.setWebhook('https://{}.herokuapp.com/{}'.format(APP_NAME, TOKEN))
+        webhook_status = updater.bot.set_webhook('https://{}.herokuapp.com/{}'.format(APP_NAME, TOKEN))
         if not webhook_status :
             raise Exception('Webhook status is false')
         print("webhook setup ok")

@@ -5,6 +5,7 @@ class Song:
         self.spotify_id = None
         self.spotify_link = None
         self.artists = []
+        self.duration = None
         self.youtube_id = None
         self.youtube_link = None
         self.external_name = None
@@ -19,6 +20,7 @@ class Song:
         ret_obj.spotify_id = spotify_track['id']
         ret_obj.spotify_link = spotify_track['external_urls']
         ret_obj.artists = [artist['name'] for artist in spotify_track['artists']]
+        ret_obj.duration = spotify_track['duration_ms']/1000 # Store duration in secs
         return ret_obj
 
     def from_youtube_link(youtube_link):
@@ -28,7 +30,7 @@ class Song:
 
     def from_query(query):
         ret_obj = Song()
-        ret_obj.query = query
+        ret_obj.query = query + ' audio'
         return ret_obj
 
     def get_search_query(self):

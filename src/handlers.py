@@ -25,13 +25,12 @@ def start(update: Update, context: CallbackContext):
         pass
     else :
         update.message.reply_text('''
-        Welcome to Spotify Parser!
-        Share your Spotify links (track, playlist and album links are supported right now)
-        Works with YouTube links too (Still experimental)
+        Welcome to Music Parser!
+        Share your Spotify, YouTube links
 
-        Press /start to see this message
-            /help to check supported link formats
+        Press /help to check supported link formats
             /download <download_link> to only download on server local storage
+            /search <search_query> to search and download the first result
         ''')
 
 def help(update: Update, context: CallbackContext):
@@ -78,7 +77,7 @@ def search_retrieve(update: Update, context: CallbackContext):
 
 def error(update: Update, context: CallbackContext):
     """Log Errors caused by Updates."""
-    update.message.reply_text('I f***ed up 😅\nPlease contact my owner')
+    update.message.reply_text('I messed up bad 😅\nPlease contact my owner')
     print(f"Message Text: {update.message.text}\nCaused error: {context.error}")
     # logger.warning(f"Message Text: {update.message.text}\nCaused error: {context.error}")
 

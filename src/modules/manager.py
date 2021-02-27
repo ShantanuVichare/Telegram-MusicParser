@@ -2,6 +2,7 @@
 import os
 import time
 import threading
+from typing import List
 from telegram import ChatAction
 from telegram.ext.callbackcontext import CallbackContext
 from telegram.message import Message
@@ -27,7 +28,7 @@ class Manager:
         self.update = update
         self.context = context
         self.songs = None
-        self.threads = []
+        self.threads: List[threading.Thread] = []
         self.upload_to_chat = upload
         self.storage = Storage(DOWNLOAD_PATH)
         self.spotify = Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
@@ -171,6 +172,6 @@ class Manager:
 
         if (self.upload_to_chat is True) and (filename is not None):
             self.context.bot.send_document(chat_id=self.update.effective_chat.id, timeout=600, document=open(filename, 'rb'))
-
+            # self.context.bot.send_media_group()
         # self.lock.release()
         return msg
