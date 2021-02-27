@@ -3,7 +3,7 @@ import os
 import time
 import random
 
-from telegram import Update, InlineQueryResultArticle, ParseMode, InputTextMessageContent, ChatAction
+from telegram import Update, BotCommand, ChatAction
 from telegram.ext import CallbackContext
 
 from constants import RANDOM_RESPONSES
@@ -17,6 +17,13 @@ from modules.manager import Manager
 
 # inline_query = None
 
+bot_commands = [
+    BotCommand('start', 'Introduction to using the bot'),
+    BotCommand('help', 'List the supported link formats'),
+    BotCommand('download', 'Tap and Hold to add <download_link>'),
+    BotCommand('get', 'Tap and Hold to add <search_query>'),
+]
+
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
 def start(update: Update, context: CallbackContext):
@@ -25,12 +32,13 @@ def start(update: Update, context: CallbackContext):
         pass
     else :
         update.message.reply_text('''
-        Welcome to Music Parser!
-        Share your Spotify, YouTube links
+Welcome to Music Parser 🎶
+✨Directly share your Spotify, YouTube links here 🤘🏻
 
-        Press /help to check supported link formats
-            /download <download_link> to only download on server local storage
-            /search <search_query> to search and download the first result
+OR try the following:
+📥 /download <download_link> to only download on server local storage
+✅ /get <search_query> to search and download the first result
+❔ /help to check supported link formats
         ''')
 
 def help(update: Update, context: CallbackContext):
@@ -54,7 +62,6 @@ def debug(update: Update, context: CallbackContext):
 
 def download_only(update: Update, context: CallbackContext):
     """ To only download files on user directory """
-    print("Download only request for:",context.args)
     m = Manager(update,context,upload=False)
     for link in context.args:
         m.begin(link)
@@ -69,11 +76,16 @@ def generate_response(update: Update, context: CallbackContext):
     else:
         update.message.reply_text(random.choice(RANDOM_RESPONSES))
 
-def search_retrieve(update: Update, context: CallbackContext):
+def get_media(update: Update, context: CallbackContext):
     """Directly search and return retrieve the media"""
     user_text = update.message.text
+    if (len(context.args) == 0): return
+    search_query = ' '.join(context.args)
     m = Manager(update,context)
-    m.begin(user_text, is_query=True)
+    m.begin(search_query, is_query=True)
+
+def search(update: Update, context: CallbackContext):
+    update.message.reply_html('Were you looking for <b>/get</b> ?')
 
 def error(update: Update, context: CallbackContext):
     """Log Errors caused by Updates."""
