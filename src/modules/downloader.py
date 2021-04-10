@@ -13,15 +13,15 @@ class Downloader:
         self.codec = 'mp3' # mp3 supports Embedding thumbnail
         class MyLogger(object):
             def debug(self, msg):
-                # self.logging_func('DEBUG - ' + msg)
+                # logger('DEBUG - ' + msg)
                 pass
 
             def warning(self, msg):
-                # self.logging_func('WARN - ' + msg)
+                # logger('WARN - ' + msg)
                 pass
 
             def error(self, msg):
-                self.logging_func('ERROR - ' + msg)
+                logger('ERROR - ' + msg)
         self.ydl_opts = {
             # 'quiet': True,
             # 'writethumbnail': True,
@@ -44,13 +44,13 @@ class Downloader:
         
         def get_best_match(results, song: Song) :
             best_match = results[0]
-            if (song.duration == None): return best_match
-            d = song.duration
-            d_diff = 1000000
-            for v in results:
-                if abs(v['duration']-d) < d_diff:
-                    d_diff = abs(v['duration']-d)
-                    best_match = v
+            if (song.duration is not None):
+                d = song.duration
+                d_diff = 1000000
+                for v in results:
+                    if abs(v['duration']-d) < d_diff:
+                        d_diff = abs(v['duration']-d)
+                        best_match = v
             return best_match
 
         with YoutubeDL(self.ydl_opts) as ydl:

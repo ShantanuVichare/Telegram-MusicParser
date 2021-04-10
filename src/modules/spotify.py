@@ -7,8 +7,8 @@ from modules.song import Song
 class Spotify:
     def __init__(self,SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET) -> None:
         auth_key = spotipy.oauth2.SpotifyClientCredentials(
-        client_id=SPOTIFY_CLIENT_ID,
-        client_secret=SPOTIFY_CLIENT_SECRET,
+            client_id=SPOTIFY_CLIENT_ID,
+            client_secret=SPOTIFY_CLIENT_SECRET,
         )
         self.client = spotipy.Spotify(auth_manager=auth_key)
     
@@ -30,7 +30,7 @@ class Spotify:
         
         return songs
     
-    def get_song(self, song_link=None, song_name=None):
+    def get_song(self, song_link=None, song_name=None) -> Song:
         spotify = self.client
         while song_link is None:
             if song_name == None:
@@ -40,6 +40,6 @@ class Spotify:
             print('\n'.join([str(i+1)+'. '+ song.get_display_name() for i,song in enumerate(songs)]))
             selection = int(input('Select from the list:(Enter 0 for retrying)'))
             if 0 < selection <= len(songs):
-                return [songs[selection-1]]
+                return songs[selection-1]
                 
-        return [Song.from_spotify_track(spotify.track(song_link))]
+        return Song.from_spotify_track(spotify.track(song_link))

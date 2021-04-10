@@ -5,7 +5,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Inlin
 
 import handlers
 
-PORT = int(os.environ.get('PORT', 5000))
+WEBHOOK_PORT = int(os.environ.get('PORT', 80))
 TOKEN = os.environ.get('BOT_TOKEN')
 APP_NAME = os.environ.get('HEROKU_APP_NAME')
 
@@ -48,8 +48,12 @@ def main():
     try:
         if APP_NAME is None:
             raise Exception('App Name not set')
-        updater.start_webhook(listen="0.0.0.0", port=int(PORT), url_path=TOKEN)
-        webhook_status = updater.bot.set_webhook('https://{}.herokuapp.com/{}'.format(APP_NAME, TOKEN))
+        print('Setting webhook on port:', WEBHOOK_PORT)
+        webhook_status = updater.start_webhook(
+            listen="0.0.0.0",
+            port=int(WEBHOOK_PORT),
+            url_path=TOKEN,
+            webhook_url='https://{}.herokuapp.com/{}'.format(APP_NAME, TOKEN))
         if not webhook_status :
             raise Exception('Webhook status is false')
         print("webhook setup ok")

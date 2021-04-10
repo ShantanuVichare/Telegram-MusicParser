@@ -2,6 +2,7 @@
 import os
 import time
 import random
+from typing import List
 
 from telegram import Update, BotCommand, ChatAction
 from telegram.ext import CallbackContext
@@ -51,15 +52,6 @@ def help(update: Update, context: CallbackContext):
     YouTube Videos: https://www.youtube.com/watch?v=XXXXXXXXXXX
     ''')
 
-def debug(update: Update, context: CallbackContext):
-    """
-    Send a message when the command /debug is issued.
-    Just a testing command!
-    """
-    update.message.reply_text(os.getcwd())
-    context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING, timeout=15)
-    if len(context.args)>0: DebugCommandHandler(Manager(update, context), update.message.reply_text, context.args[0])
-
 def download_only(update: Update, context: CallbackContext):
     """ To only download files on user directory """
     m = Manager(update,context,upload=False)
@@ -100,6 +92,17 @@ def inlinequery(update: Update, context: CallbackContext):
         # update.inline_query.answer(results = [], switch_pm_text="Tap here to Download Now!", switch_pm_parameter="inline")
         pass
 
+def debug(update: Update, context: CallbackContext):
+    """
+    Send a message when the command /debug is issued.
+    Just a testing command!
+    """
+    
+    context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING, timeout=15)
+    if len(context.args)>0: DebugCommandHandler(Manager(update, context), update.message.reply_text, context.args[0])
+    else: update.message.reply_text(f"Supported commands:\n${DebugCommandHandler.get_display_commands()}")
+    return
+
 class DebugCommandHandler :
     def __init__(self, manager: Manager, reply_func, command_text: str) -> None:
         self.m = manager
@@ -110,10 +113,13 @@ class DebugCommandHandler :
         reply_text = commands[command_text]()
         reply_func(reply_text)
     
+    def get_display_commands() -> List[str]:
+        return ['list','reset']
+
     def list_files(self) -> str:
-        return os.listdir(self.m.storage.DOWNLOAD_PATH)
+        return f"Path: ${self.m.storage.DOWNLOAD_PATH}:\n${os.listdir(self.m.storage.DOWNLOAD_PATH)}"
 
     def reset_files(self) -> str:
         self.m.storage.reset_directory()
-        return os.listdir(self.m.storage.DOWNLOAD_PATH)
+        return self.list_files()
 

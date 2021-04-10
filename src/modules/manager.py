@@ -27,7 +27,7 @@ class Manager:
         self.thread_access = threading.BoundedSemaphore(value=8)
         self.update = update
         self.context = context
-        self.songs = None
+        self.songs: List[Song] = None
         self.threads: List[threading.Thread] = []
         self.upload_to_chat = upload
         self.storage = Storage(DOWNLOAD_PATH)
@@ -39,7 +39,7 @@ class Manager:
             self.songs = [Song.from_query(request_text)]
             msg = self.interact(text="Identified a search query")
         elif SPOTIFY_TRACK in request_text:
-            self.songs = self.spotify.get_song(song_link=request_text)
+            self.songs = [self.spotify.get_song(song_link=request_text)]
             msg = self.interact(text="Identified a Spotify track")
         elif SPOTIFY_PLAYLIST in request_text:
             self.songs = self.spotify.get_playlist(playlist_link=request_text)
@@ -90,11 +90,12 @@ class Manager:
 
         myself.thread_access.acquire()
         logs = []
-        downloader = Downloader(DOWNLOAD_PATH, logger=logs.append)
         log = logs.append
+        downloader = Downloader(DOWNLOAD_PATH, logger=log)
+        log("Started: "+song.get_display_name())
         try:
-            log("Searching: "+song.get_display_name())
             msg = myself.interact(text="Searching: "+song.get_display_name(),action=ChatAction.TYPING)
+            log("Found: "+song.get_display_name())
 
             # Update YouTube data
             downloader.retrieve_youtube_id(song)
