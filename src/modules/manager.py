@@ -54,7 +54,7 @@ class Manager:
             self.context.bot.send_message(chat_id=self.update.effective_chat.id, text="Invalid URL")
             return
         
-        self.storage.clean_files()
+        self.storage.clear_outdated()
 
         if (len(self.songs)>1): msg = self.interact(msg=msg, text="Downloading {} songs".format(len(self.songs)))
 
@@ -105,6 +105,9 @@ class Manager:
             if myself.storage.find_file(song):
                 log("Indexed file found: "+str(myself.storage.get_index(song)))
             else:
+                # Ensure storage availability
+                myself.storage.clear_uploaded()
+
                 # Initiate Download
                 if song.retry_count < downloader.max_retries:
                     log("Downloader try: "+str(song.retry_count))
@@ -121,15 +124,14 @@ class Manager:
 
                 # Download Timeout
                 start_time = time.time()
+                time_emojis = ['🕛','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚']
+                time_emoji_ind = 0
                 while not myself.storage.find_file(song):
                     if time.time() - start_time >= 300: # Timeout of 5 mins
                         break
-                    msg = myself.interact(msg=msg,text="Downloading (🙅‍♂️) : "+song.get_display_name(),action=ChatAction.TYPING)
-                    time.sleep(1)
-                    msg = myself.interact(msg=msg,text="Downloading (🙆‍♂️) : "+song.get_display_name(),action=ChatAction.TYPING)
-                    time.sleep(1)
-                    msg = myself.interact(msg=msg,text="Downloading (🤷‍♂️) : "+song.get_display_name(),action=ChatAction.TYPING)
-                    time.sleep(1)
+                    msg = myself.interact(msg=msg,text=f"Downloading ({time_emojis[time_emoji_ind]}) : {song.get_display_name()}",action=ChatAction.TYPING)
+                    time.sleep(2)
+                    time_emoji_ind = (time_emoji_ind + 1) % len(time_emojis)
 
             # Verify completion
             if not myself.storage.find_file(song):
@@ -142,17 +144,19 @@ class Manager:
             song.message = 'Download completed'
             log("Download completed: "+song.get_display_name())
             myself.storage.update_index(song)
-            myself.storage.save_index()
             log("Index Updated: "+song.get_display_name())
             msg = myself.interact(msg=msg,text="Download completed! Now Uploading: "+song.get_display_name(),action=ChatAction.UPLOAD_AUDIO,filename=myself.storage.get_filepath(song))
             # myself.context.bot.send_document(chat_id=myself.update.effective_chat.id, document=open(filename, 'rb'))
             if myself.upload_to_chat:
+                myself.storage.mark_uploaded(song)
                 song.message = 'Upload completed'
                 log("Uploaded: "+song.get_display_name())
+            myself.storage.save_index()
             msg.delete()
         except Exception as e :
             print("Exception:",e)
-            print("Thread failed for Song: {}\n Logs: {}".format(song.get_display_name(),'\n\t'.join(logs)))
+            print_logs = "\n-    ".join(logs)
+            print(f"Thread failed for Song: {song.get_display_name()}\nLogs:\n{print_logs}")
         
         myself.thread_access.release()
         return

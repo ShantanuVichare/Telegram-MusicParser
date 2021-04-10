@@ -8,6 +8,12 @@ INDEX_FILENAME = 'index.json'
 FILENAME_FIELD = 'filename'
 TIMESTAMP_FIELD = 'timestamp'
 SELF = 'SELF'
+UPLOADED = 'UPLOADED'
+
+def add_to_index(filename:str) : return {FILENAME_FIELD: filename, TIMESTAMP_FIELD: datetime.utcnow().isoformat(), UPLOADED: False}
+def rebuild_index() : return {SELF: add_to_index(INDEX_FILENAME)}
+def set_uploaded(obj) : obj[UPLOADED] = True
+def incomplete_download(filepath:str) : return 'webm' in filepath
 
 class Storage:
     def __init__(self, DOWNLOAD_PATH) -> None:
@@ -16,7 +22,7 @@ class Storage:
         if os.path.exists(self.index_path):
             self.load_index()
         else:
-            self.index = {SELF:{FILENAME_FIELD: INDEX_FILENAME, TIMESTAMP_FIELD: datetime.utcnow().isoformat()}}
+            self.index = rebuild_index()
 
     def get_downloaded_filepaths(self):
         return [os.path.join(self.DOWNLOAD_PATH,file) for file in os.listdir(self.DOWNLOAD_PATH)]
@@ -30,21 +36,29 @@ class Storage:
         with open(self.index_path, "w") as f: 
             json.dump(self.index, f) 
         return
-    
-    def clean_files(self):
-        now = datetime.utcnow()
-        delta = timedelta(days=2)
-        self.index = {k:self.index[k] for k in self.index if now - datetime.fromisoformat(self.index[k][TIMESTAMP_FIELD]) < delta }
-        self.index[SELF] = {FILENAME_FIELD: INDEX_FILENAME, TIMESTAMP_FIELD: datetime.utcnow().isoformat()}
-        updated_filepaths = [os.path.join(self.DOWNLOAD_PATH, self.index[k][FILENAME_FIELD]) for k in self.index]
-        for fp in self.get_downloaded_filepaths():
-            if fp not in updated_filepaths: os.remove(fp)
         
+    def clean_files(self):
+        updated_filepaths = [os.path.join(self.DOWNLOAD_PATH, v[FILENAME_FIELD]) for v in self.index.values()]
+        for fp in self.get_downloaded_filepaths():
+            if (fp not in updated_filepaths) and not incomplete_download(fp) : os.remove(fp)
+        return
+    
+    def clear_outdated(self):
+        now = datetime.utcnow()
+        delta = timedelta(minutes=30)
+        self.index = { k:v for k,v in self.index.items() if now - datetime.fromisoformat(v[TIMESTAMP_FIELD]) < delta }
+        self.index[SELF] = rebuild_index()[SELF]
+        self.clean_files()
+        return
+
+    def clear_uploaded(self):
+        self.index = { k:v for k,v in self.index.items() if not v[UPLOADED] }
+        self.clean_files()
         return
 
     def reset_directory(self):
         for fp in self.get_downloaded_filepaths(): os.remove(fp)
-        self.index = {SELF:{FILENAME_FIELD: INDEX_FILENAME, TIMESTAMP_FIELD: datetime.utcnow().isoformat()}}
+        self.index = rebuild_index()
         self.save_index()
         return
 
@@ -63,5 +77,10 @@ class Storage:
         return os.path.join(self.DOWNLOAD_PATH,song.external_name)
 
     def update_index(self,song: Song):
-        self.index[song.youtube_id] = {FILENAME_FIELD: song.external_name, TIMESTAMP_FIELD: datetime.utcnow().isoformat()}
+        self.index[song.youtube_id] = add_to_index(song.external_name)
         return
+
+    def mark_uploaded(self, song: Song):
+        set_uploaded(self.index[song.youtube_id])
+        return
+    

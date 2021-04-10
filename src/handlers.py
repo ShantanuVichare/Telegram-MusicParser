@@ -34,7 +34,7 @@ def start(update: Update, context: CallbackContext):
     else :
         update.message.reply_text('''
 Welcome to Music Parser 🎶
-✨Directly share your Spotify, YouTube links here 🤘🏻
+✨Directly share your Spotify, YouTube links here 👇🏻
 
 OR try the following:
 📥 /download <download_link> to only download on server local storage
@@ -100,7 +100,7 @@ def debug(update: Update, context: CallbackContext):
     
     context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING, timeout=15)
     if len(context.args)>0: DebugCommandHandler(Manager(update, context), update.message.reply_text, context.args[0])
-    else: update.message.reply_text(f"Supported commands:\n${DebugCommandHandler.get_display_commands()}")
+    else: update.message.reply_text(f"Supported commands:\n{DebugCommandHandler.get_display_commands()}")
     return
 
 class DebugCommandHandler :
@@ -117,7 +117,7 @@ class DebugCommandHandler :
         return ['list','reset']
 
     def list_files(self) -> str:
-        return f"Path: ${self.m.storage.DOWNLOAD_PATH}:\n${os.listdir(self.m.storage.DOWNLOAD_PATH)}"
+        return f"Path: {self.m.storage.DOWNLOAD_PATH}\nFiles: {os.listdir(self.m.storage.DOWNLOAD_PATH)}"
 
     def reset_files(self) -> str:
         self.m.storage.reset_directory()
