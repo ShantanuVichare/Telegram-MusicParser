@@ -13,15 +13,15 @@ class Downloader:
         self.codec = 'mp3' # mp3 supports Embedding thumbnail
         class MyLogger(object):
             def debug(self, msg):
-                # self.logging_func('DEBUG - ' + msg)
+                # logger('DEBUG - ' + msg)
                 pass
 
             def warning(self, msg):
-                # self.logging_func('WARN - ' + msg)
+                # logger('WARN - ' + msg)
                 pass
 
             def error(self, msg):
-                self.logging_func('ERROR - ' + msg)
+                logger('ERROR - ' + msg)
         self.ydl_opts = {
             # 'quiet': True,
             # 'writethumbnail': True,

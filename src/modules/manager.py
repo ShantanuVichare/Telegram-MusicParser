@@ -18,8 +18,11 @@ from modules.storage import Storage
 SPOTIFY_CLIENT_ID = os.environ.get('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.environ.get('SPOTIFY_CLIENT_SECRET')
 DOWNLOAD_PATH = os.environ.get('DOWNLOAD_PATH')
+
 if not os.path.exists(DOWNLOAD_PATH):
+    print('path:' + DOWNLOAD_PATH + ' does not exist')
     os.mkdir(DOWNLOAD_PATH)
+    print('path:' + DOWNLOAD_PATH + ' created successfully')
 
 class Manager:
     def __init__(self,update: Update,context: CallbackContext,upload: bool=True) -> None:
