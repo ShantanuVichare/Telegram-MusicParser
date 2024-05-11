@@ -7,7 +7,7 @@ import handlers
 
 WEBHOOK_PORT = int(os.environ.get('PORT', 80))
 TOKEN = os.environ.get('BOT_TOKEN')
-APP_NAME = os.environ.get('HEROKU_APP_NAME')
+WEBHOOK_HOST = os.environ.get('WEBHOOK_HOST')
 
 
 def main():
@@ -44,23 +44,23 @@ def main():
     dp.add_error_handler(handlers.error)
 
 
-    # Set Webhook on Heroku if APP_NAME is defined else Start polling
-    try:
-        if APP_NAME is None:
-            raise Exception('App Name not set')
-        print('Setting webhook on port:', WEBHOOK_PORT)
+    # Set Webhook on Heroku if WEBHOOK_HOST is defined else Start polling
+    webhook_status = None
+    if WEBHOOK_HOST is not None:
+        print('Attempting setting webhook on port:', WEBHOOK_PORT)
         webhook_status = updater.start_webhook(
             listen="0.0.0.0",
             port=int(WEBHOOK_PORT),
             url_path=TOKEN,
-            webhook_url='https://{}.herokuapp.com/{}'.format(APP_NAME, TOKEN))
-        if not webhook_status :
-            raise Exception('Webhook status is false')
-        print("webhook setup ok")
-    except Exception as error:
-        print("webhook setup failed:", error)
+            webhook_url='{}/{}'.format(WEBHOOK_HOST, TOKEN)
+        )
+    if not webhook_status :
+        print("webhook not configured")
         updater.start_polling(poll_interval=0.4, timeout=3600)
         print("Started polling")
+    else:
+        print("webhook setup ok")
+        
 
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
