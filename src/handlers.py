@@ -32,15 +32,16 @@ def start(update: Update, context: CallbackContext):
     if len(context.args) == 1  and context.args[0] == "inline" :
         pass
     else :
+        fname = update.message.from_user.first_name
         update.message.reply_text('''
-Welcome to Music Parser 🎶
+Hey {}, Welcome to Music Parser 🎶
 ✨Directly share your Spotify, YouTube links here 👇🏻
 
 OR try the following:
 📥 /download <download_link> to only download on server local storage
 ✅ /get <search_query> to search and download the first result
 ❔ /help to check supported link formats
-        ''')
+        '''.format(fname))
 
 def help(update: Update, context: CallbackContext):
     """Send a message when the command /help is issued."""
@@ -56,7 +57,7 @@ def download_only(update: Update, context: CallbackContext):
     """ To only download files on user directory """
     m = Manager(update,context,upload=False)
     for link in context.args:
-        m.begin(link)
+        m.begin(request_link=link)
 
 def generate_response(update: Update, context: CallbackContext):
     """Respond to user message."""
@@ -64,17 +65,16 @@ def generate_response(update: Update, context: CallbackContext):
     if ('open.spotify.com' in user_text) or ('youtube.com' in user_text) or ('youtu.be' in user_text) or (update.message.via_bot):
         m = Manager(update,context)
         is_query = update.message.via_bot and update.message.via_bot.is_bot
-        m.begin(user_text, is_query)
+        if is_query : m.begin(query=user_text)
     else:
         update.message.reply_text(random.choice(RANDOM_RESPONSES))
 
 def get_media(update: Update, context: CallbackContext):
     """Directly search and return retrieve the media"""
-    user_text = update.message.text
     if (len(context.args) == 0): return
     search_query = ' '.join(context.args)
     m = Manager(update,context)
-    m.begin(search_query, is_query=True)
+    m.begin(query=search_query)
 
 def search(update: Update, context: CallbackContext):
     update.message.reply_html('Were you looking for <b>/get</b> ?')

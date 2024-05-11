@@ -1,7 +1,7 @@
 
 import os
 
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, InlineQueryHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, InlineQueryHandler, CallbackQueryHandler
 
 import handlers
 
@@ -34,6 +34,7 @@ def main():
     dp.add_handler(CommandHandler("get", handlers.get_media, run_async=True))
 
     dp.add_handler(CommandHandler("search", handlers.search, run_async=True))
+    # dp.add_handler(CallbackQueryHandler())
 
     # on noncommand i.e message - get a response
     dp.add_handler(MessageHandler(Filters.text, handlers.generate_response, run_async=True))
