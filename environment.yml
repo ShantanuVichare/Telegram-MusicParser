@@ -1,0 +1,11 @@
+name: music-parser
+channels:
+  - defaults
+dependencies:
+  - pip
+  - python=3.11
+  - pip:
+      - spotipy
+      - python-telegram-bot[webhooks] # reference: https://github.com/python-telegram-bot/python-telegram-bot?tab=readme-ov-file#optional-dependencies
+      - youtube-dl
+      - yt-dlp

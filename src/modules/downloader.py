@@ -1,6 +1,7 @@
 
 # import threading
-from youtube_dl import YoutubeDL
+# from youtube_dl import YoutubeDL
+from yt_dlp import YoutubeDL
 
 from modules.song import Song
 
@@ -22,7 +23,7 @@ class Downloader:
 
             def error(self, msg):
                 logger('ERROR - ' + msg)
-        self.ydl_opts = {
+        self.ydl_opts_download = {
             # 'quiet': True,
             # 'writethumbnail': True,
             'age_limit': 30,
@@ -32,12 +33,20 @@ class Downloader:
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': self.codec,
-                'preferredquality': '256',},
+                'preferredquality': '192',
+            },
                 # {'key': 'EmbedThumbnail'}
             ],
             'logger': MyLogger(),
             'prefer_ffmpeg': True,
             # 'ffmpeg_location': './'
+        }
+        self.ydl_opts_search = {
+            'quiet': True,
+            'skip_download': True,
+            'extract_flat': True,
+            'format': 'bestaudio/best',
+            'outtmpl': '%(title)s.%(ext)s',
         }
     
     def retrieve_youtube_id(self, song: Song) -> bool:
@@ -48,28 +57,27 @@ class Downloader:
                 d = song.duration
                 d_diff = 1000000
                 for v in results:
-                    if abs(v['duration']-d) < d_diff:
+                    if v['duration'] and (abs(v['duration']-d) < d_diff):
                         d_diff = abs(v['duration']-d)
                         best_match = v
             return best_match
 
-        with YoutubeDL(self.ydl_opts) as ydl:
+        with YoutubeDL(self.ydl_opts_search) as ydl:
             if song.youtube_link is not None:
                 video = ydl.extract_info(song.youtube_link, download=False)
             else:
                 results = ydl.extract_info(f"ytsearch{10}:{song.get_search_query()}", download=False)['entries']
                 video = get_best_match(results, song)
             video['ext'] = self.codec
-            filename = ydl.prepare_filename(video)
         song.youtube_id = video['id']
-        song.external_name = filename[len(self.DOWNLOAD_PATH):]
+        song.filename = ydl.prepare_filename(video)
         return
 
     def download(self,song: Song) -> bool:
         file_downloaded = False
         # self.lock.acquire()
         try:
-            with YoutubeDL(self.ydl_opts) as ydl:
+            with YoutubeDL(self.ydl_opts_download) as ydl:
                 ydl.download([song.youtube_id])
             song.message = 'Download started'
             file_downloaded = True

@@ -45,7 +45,7 @@ class Storage:
     
     def clear_outdated(self):
         now = datetime.utcnow()
-        delta = timedelta(minutes=30)
+        delta = timedelta(days=1)
         self.index = { k:v for k,v in self.index.items() if now - datetime.fromisoformat(v[TIMESTAMP_FIELD]) < delta }
         self.index[SELF] = rebuild_index()[SELF]
         self.clean_files()
@@ -63,7 +63,7 @@ class Storage:
         return
 
     def find_file(self, song: Song):
-        if (song.external_name in os.listdir(self.DOWNLOAD_PATH)):
+        if (song.filename in os.listdir(self.DOWNLOAD_PATH)):
             return True
         return False
 
@@ -74,10 +74,10 @@ class Storage:
             return None
 
     def get_filepath(self, song: Song):
-        return os.path.join(self.DOWNLOAD_PATH,song.external_name)
+        return os.path.join(self.DOWNLOAD_PATH,song.filename)
 
     def update_index(self,song: Song):
-        self.index[song.youtube_id] = add_to_index(song.external_name)
+        self.index[song.youtube_id] = add_to_index(song.filename)
         return
 
     def mark_uploaded(self, song: Song):

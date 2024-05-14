@@ -8,7 +8,7 @@ class Song:
         self.duration = None
         self.youtube_id = None
         self.youtube_link = None
-        self.external_name = None
+        self.filename = None
         self.retry_count = 0
         self.bit_rate = None
         self.message = None
@@ -42,9 +42,12 @@ class Song:
         try:
             display_name = self.name + ' by ' + ', '.join([artist for artist in self.artists])
         except:
-            if self.external_name is not None:
-                display_name = self.external_name
-            else:
-                display_name = '...'
-        
+            display_name = self.filename
         return display_name
+    
+    # def get_filename(self, extension='.mp3') -> str:
+    #     filename = self.name
+    #     if self.artists:
+    #         filename = ', '.join([artist for artist in self.artists]) + ' - ' + filename
+    #     return filename + extension
+        
