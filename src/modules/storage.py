@@ -34,7 +34,7 @@ class Storage:
 
     def save_index(self):
         with open(self.index_path, "w") as f: 
-            json.dump(self.index, f) 
+            json.dump(self.index, f, indent=2) 
         return
         
     def clean_files(self):
@@ -46,7 +46,7 @@ class Storage:
     def clear_outdated(self):
         now = datetime.utcnow()
         delta = timedelta(days=1)
-        self.index = { k:v for k,v in self.index.items() if now - datetime.fromisoformat(v[TIMESTAMP_FIELD]) < delta }
+        self.index = { k:v for k,v in self.index.items() if (now - datetime.fromisoformat(v[TIMESTAMP_FIELD]) < delta) and (os.path.exists(os.path.join(self.DOWNLOAD_PATH, v[FILENAME_FIELD]))) }
         self.index[SELF] = rebuild_index()[SELF]
         self.clean_files()
         return
@@ -73,8 +73,15 @@ class Storage:
         except:
             return None
 
-    def get_filepath(self, song: Song):
-        return os.path.join(self.DOWNLOAD_PATH,song.filename)
+    def get_filepath(self, filename: str):
+        return os.path.join(self.DOWNLOAD_PATH, filename)
+
+    def finalize_filename(self,song: Song):
+        extension = song.filename.split('.')[-1]
+        new_filename = song.get_display_name() + '.' + extension
+        os.replace(self.get_filepath(song.filename), self.get_filepath(new_filename))
+        song.filename = new_filename
+        return
 
     def update_index(self,song: Song):
         self.index[song.youtube_id] = add_to_index(song.filename)

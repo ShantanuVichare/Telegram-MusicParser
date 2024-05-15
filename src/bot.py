@@ -91,8 +91,13 @@ if __name__ == '__main__':
         print('Running new instance')
         proc = Process(target=main)
         proc.start()
-        while runner.already_running():
-            time.sleep(2)
-        proc.terminate()
-        print('Terminated via runner signal')
+        try:
+            while runner.already_running():
+                time.sleep(2)
+            proc.terminate()
+            print('Terminated via runner signal')
+        except:
+            proc.terminate()
+            runner.stop_running()
+            print('Stopping existing instance')
     

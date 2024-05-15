@@ -3,7 +3,7 @@ import asyncio
 import os
 import time
 import threading
-from typing import List
+from typing import List,Tuple
 from telegram.constants import ChatAction
 from telegram.ext import CallbackContext
 from telegram import Message, Update
@@ -26,67 +26,54 @@ if not os.path.exists(DOWNLOAD_PATH):
 
 class Manager:
     def __init__(self,update: Update,context: CallbackContext,upload: bool=True) -> None:
-        self.lock = threading.Lock()
+        # self.lock = threading.Lock()
         self.thread_access = threading.BoundedSemaphore(value=8)
         self.update = update
         self.context = context
-        self.songs: List[Song] = []
         self.upload_to_chat = upload
         self.storage = Storage(DOWNLOAD_PATH)
         self.spotify = Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
-
-    async def initialize_from_config(self,request_link:str=None,query:str=None,interact:bool=True) -> Message:
+        
+    async def initialize_media(self, links: List[str] = None, query: str = None) -> Tuple[List[Song],Message]:
+        songs = []
         msg = None
         if query is not None:
-            self.songs += [Song.from_query(query)]
-            if interact : msg = await self.interact(text="Identified a search query")
-        elif SPOTIFY_TRACK in request_link:
-            self.songs += [self.spotify.get_song(song_link=request_link)]
-            if interact : msg = await self.interact(text="Identified a Spotify track")
-        elif SPOTIFY_PLAYLIST in request_link:
-            self.songs += self.spotify.get_playlist(playlist_link=request_link)
-            if interact : msg = await self.interact(text="Identified a Spotify playlist")
-        elif SPOTIFY_ALBUM in request_link:
-            self.songs += self.spotify.get_album(album_link=request_link)
-            if interact : msg = await self.interact(text="Identified a Spotify album")
-        elif (YOUTUBE_VIDEO in request_link) or (YOUTUBE_SHORT in request_link):
-            self.songs += [Song.from_youtube_link(youtube_link=request_link)]
-            if interact : msg = await self.interact(text="Identified a YouTube video")
-        return msg
-    
-    
-
-    async def begin(self,request_link:str=None,query:str=None, retry_links:List[str]=[]):
-
-        # TO-DO: Convert to config object
-        if len(retry_links) > 0:
-            msg = await self.interact(text=f"Retrying {len(retry_links)} songs")
-            for retry_link in retry_links :
-                await self.initialize_from_config(request_link=retry_link,interact=False)
+            songs += [Song.from_query(query)]
+            msg = await self.interact(text="Identified a search query")
         else:
-            msg = await self.initialize_from_config(request_link,query)
-        if msg is None:
-            await self.context.bot.send_message(chat_id=self.update.effective_chat.id, text="Invalid URL")
-            return
+            for link in links:
+                if SPOTIFY_TRACK in link:
+                    songs += [self.spotify.get_song(song_link=link)]
+                elif SPOTIFY_PLAYLIST in link:
+                    songs += self.spotify.get_playlist(playlist_link=link)
+                elif SPOTIFY_ALBUM in link:
+                    songs += self.spotify.get_album(album_link=link)
+                elif (YOUTUBE_VIDEO in link) or (YOUTUBE_SHORT in link):
+                    songs += [Song.from_youtube_link(youtube_link=link)]
+            msg = await self.interact(text=f"Identified {len(links)} links")
+        return (songs, msg)
+    
+    
+
+    async def process_songs(self, songs:List[Song], msg:Message):
         
         self.storage.clear_outdated()
 
-        msg = await self.interact(msg=msg, text="Downloading {} song(s)".format(len(self.songs)))
+        msg = await self.interact(msg=msg, text="Downloading {} song(s)".format(len(songs)))
 
         tasks = set()
-        for song in self.songs:
+        for song in songs:
             task = asyncio.create_task(self.process_song(song))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
 
         task_exec_future = asyncio.gather(*tasks)
         n_active_tasks = lambda : sum([not t.done() for t in tasks])
-        # active_thread_counts = lambda _ :  [t.is_alive() for t in self.threads]
         try:
             while n_active_tasks() > 0:
-                await asyncio.sleep(2)
-                if (len(self.songs)>1):
-                    msg = await self.interact(msg=msg,text="Remaining songs {}/{}".format(n_active_tasks(),len(self.songs)),action=ChatAction.TYPING)
+                await asyncio.sleep(1)
+                if (len(songs)>1):
+                    msg = await self.interact(msg=msg,text="Remaining songs {}/{}".format(n_active_tasks(),len(songs)),action=ChatAction.TYPING)
         except:
             print("Updating failed!")
 
@@ -95,22 +82,27 @@ class Manager:
         
         await msg.delete()
         if self.upload_to_chat:
-            if (len(self.songs)>1):
-                await self.interact(text="Retrieved {}/{} songs".format(len([True for song in self.songs if song.message=='Upload completed']),len(self.songs)))
+            incomplete_songs = [song for song in songs if song.message!='Upload completed']
         else:
-            if (len(self.songs)>1):
-                await self.interact(text="Downloaded {}/{} songs".format(len([True for song in self.songs if song.message=='Download completed']),len(self.songs)))
+            incomplete_songs = [song for song in songs if song.message!='Download completed']
         
-        print('Songs\' final Message:\n','\n\t'.join([str(song.message)+' - '+song.get_display_name() for song in self.songs]))
+        await self.interact(text="Downloaded {}/{} songs".format(len(songs)-len(incomplete_songs),len(songs)))
+        retry_msg = None
+        if len(incomplete_songs) > 0:
+            retry_msg = await self.interact(text="Retrying {} songs".format(len(incomplete_songs)))
+        
+        print('Songs\' final Message:\n\t','\n\t'.join([str(song.message)+' - '+song.get_display_name() for song in songs]))
 
         self.storage.save_index()
-        return
+        return incomplete_songs, retry_msg
+
 
     async def process_song(self, song: Song):
 
         self.thread_access.acquire()
         logs = []
         log = logs.append
+        # log = print # For debugging
         downloader = Downloader(DOWNLOAD_PATH, logger=log)
         log("Started: "+song.get_display_name())
         try:
@@ -126,7 +118,7 @@ class Manager:
                 log("Indexed file found: "+str(self.storage.get_index(song)))
             else:
                 # Ensure storage availability
-                self.storage.clear_uploaded()
+                # self.storage.clear_uploaded()
 
                 # Initiate Download
                 if song.retry_count < downloader.max_retries:
@@ -160,12 +152,15 @@ class Manager:
                 msg = await self.interact(msg=msg,text="Download couldn't complete: "+song.get_display_name(),action=ChatAction.TYPING)
                 raise Exception("Download couldn't complete")
 
-            # Succesful Download
+            # Succesful Download - Rename and add to index
             song.message = 'Download completed'
+            # self.storage.finalize_filename(song)
             log("Download completed: "+song.get_display_name())
             self.storage.update_index(song)
             log("Index Updated: "+song.get_display_name())
-            msg = await self.interact(msg=msg,text="Download completed! Now Uploading: "+song.get_display_name(),action=ChatAction.UPLOAD_DOCUMENT,filename=self.storage.get_filepath(song))
+            
+            # Send to TG servers
+            msg = await self.interact(msg=msg,text="Download completed! Now Uploading: "+song.get_display_name(),action=ChatAction.UPLOAD_DOCUMENT,filename=self.storage.get_filepath(song.filename))
             # await self.context.bot.send_document(chat_id=self.update.effective_chat.id, document=open(filename, 'rb'))
             if self.upload_to_chat:
                 self.storage.mark_uploaded(song)
@@ -183,7 +178,7 @@ class Manager:
         return
     
     async def interact(self,msg: Message=None,text=None,action=None,filename=None):
-        self.lock.acquire()
+        # self.lock.acquire()
         if msg is not None:
             if (text is not None) and (text != msg.text):
                 # print('Text:',text,'Msg.text:',msg.text)
@@ -194,7 +189,7 @@ class Manager:
         if action is not None:
             await self.context.bot.send_chat_action(chat_id=self.update.effective_chat.id, action=action)
         
-        self.lock.release()
+        # self.lock.release()
 
         if (self.upload_to_chat is True) and (filename is not None):
             await self.context.bot.send_document(chat_id=self.update.effective_chat.id, read_timeout=600, document=open(filename, 'rb'))

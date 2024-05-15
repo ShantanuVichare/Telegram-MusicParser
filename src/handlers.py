@@ -62,8 +62,11 @@ async def help(update: Update, context: CallbackContext):
 async def cache_only(update: Update, context: CallbackContext):
     """ To only download files on user directory """
     m = Manager(update,context,upload=False)
-    for link in context.args:
-        await m.begin(request_link=link) # TODO parallelize
+    songs, msg = await m.initialize_media(links=context.args)
+    if msg is None:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid URL")
+        return
+    await m.process_songs(songs, msg)
 
 async def generate_response(update: Update, context: CallbackContext):
     """Respond to user message."""
@@ -71,8 +74,12 @@ async def generate_response(update: Update, context: CallbackContext):
     if ('open.spotify.com' in user_text) or ('youtube.com' in user_text) or ('youtu.be' in user_text) or (update.message.via_bot):
         m = Manager(update,context)
         is_query = update.message.via_bot and update.message.via_bot.is_bot
-        if is_query :
-            await m.begin(query=user_text)
+        # TODO use is_query
+        songs, msg = await m.initialize_media(query=user_text)
+        if msg is None:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid URL")
+            return
+        await m.process_songs(songs, msg)
     else:
         await update.message.reply_text(random.choice(RANDOM_RESPONSES))
 
@@ -80,15 +87,29 @@ async def get_media(update: Update, context: CallbackContext):
     """ Download and send files from link """
     if (len(context.args) == 0): return
     m = Manager(update,context)
-    for link in context.args:
-        await m.begin(request_link=link) # TODO parallelize
+    songs, msg = await m.initialize_media(links=context.args)
+    if msg is None:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid URL")
+        return
+    
+    retry_songs, retry_msg = await m.process_songs(songs, msg)
+    process_retry_count = 0
+    while len(retry_songs)>0 and process_retry_count > 0:
+        process_retry_count -= 1
+        retry_songs, retry_msg = await m.process_songs(retry_songs, retry_msg)
+    await retry_msg.delete()
+        
 
 async def search(update: Update, context: CallbackContext):
     """Directly search and return retrieve the media"""
     if (len(context.args) == 0): return
-    search_query = ' '.join(context.args)
     m = Manager(update,context)
-    await m.begin(query=search_query)
+    search_query = ' '.join(context.args)
+    songs, msg = await m.initialize_media(query=search_query)
+    if msg is None:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid URL")
+        return
+    await m.process_songs(songs, msg)
 
 async def error(update: Update, context: CallbackContext):
     """Log Errors caused by Updates."""
@@ -109,6 +130,9 @@ async def debug(update: Update, context: CallbackContext):
     Send a message when the command /debug is issued.
     Just a testing command!
     """
+    if not Users.is_admin(update.message.from_user.id):
+        await update.message.reply_text(f"Unsupported command")
+        return
     
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING, read_timeout=15)
     debugHandler = DebugCommandHandler(Manager(update, context))
@@ -163,10 +187,10 @@ class DebugCommandHandler :
     def execute(self, add_args) -> str:
         return os.popen(' '.join(add_args)).read()
 
-    def list_files(self, add_args) -> str:
+    def list_files(self, add_args=None) -> str:
         return f"Path: {self.m.storage.DOWNLOAD_PATH}\nFiles: {os.listdir(self.m.storage.DOWNLOAD_PATH)}"
 
-    def reset_files(self, add_args) -> str:
+    def reset_files(self, add_args=None) -> str:
         self.m.storage.reset_directory()
         return self.list_files()
 

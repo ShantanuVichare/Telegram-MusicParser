@@ -1,6 +1,7 @@
 
 # import threading
 # from youtube_dl import YoutubeDL
+import os
 from yt_dlp import YoutubeDL
 
 from modules.song import Song
@@ -77,7 +78,9 @@ class Downloader:
         file_downloaded = False
         # self.lock.acquire()
         try:
-            with YoutubeDL(self.ydl_opts_download) as ydl:
+            file_ydl_opts = {**self.ydl_opts_download}
+            file_ydl_opts['outtmpl'] = os.path.join(self.DOWNLOAD_PATH,f'{song.get_display_name()}.{self.codec}')
+            with YoutubeDL(file_ydl_opts) as ydl:
                 ydl.download([song.youtube_id])
             song.message = 'Download started'
             file_downloaded = True
