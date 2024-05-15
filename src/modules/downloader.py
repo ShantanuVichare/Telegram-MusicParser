@@ -1,4 +1,3 @@
-
 # import threading
 # from youtube_dl import YoutubeDL
 import os
@@ -6,13 +5,15 @@ from yt_dlp import YoutubeDL
 
 from modules.song import Song
 
+
 class Downloader:
-    def __init__(self,DOWNLOAD_PATH: str, logger=print) -> None:
+    def __init__(self, DOWNLOAD_PATH: str, logger=print) -> None:
         self.DOWNLOAD_PATH = DOWNLOAD_PATH
         # self.lock = threading.Lock()
         self.max_retries = 3
         self.logging_func = logger
-        self.codec = 'mp3' # mp3 supports Embedding thumbnail
+        self.codec = "mp3"  # mp3 supports Embedding thumbnail
+
         class MyLogger(object):
             def debug(self, msg):
                 # logger('DEBUG - ' + msg)
@@ -23,43 +24,45 @@ class Downloader:
                 pass
 
             def error(self, msg):
-                logger('ERROR - ' + msg)
+                logger("ERROR - " + msg)
+
         self.ydl_opts_download = {
             # 'quiet': True,
             # 'writethumbnail': True,
-            'age_limit': 30,
-            'nocheckcertificate': True,
-            'format': 'bestaudio/best',
-            'outtmpl': self.DOWNLOAD_PATH+'%(title)s.%(ext)s',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': self.codec,
-                'preferredquality': '192',
-            },
+            "age_limit": 30,
+            "nocheckcertificate": True,
+            "format": "bestaudio/best",
+            "outtmpl": self.DOWNLOAD_PATH + "%(title)s.%(ext)s",
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": self.codec,
+                    "preferredquality": "192",
+                },
                 # {'key': 'EmbedThumbnail'}
             ],
-            'logger': MyLogger(),
-            'prefer_ffmpeg': True,
+            "logger": MyLogger(),
+            "prefer_ffmpeg": True,
             # 'ffmpeg_location': './'
         }
         self.ydl_opts_search = {
-            'quiet': True,
-            'skip_download': True,
-            'extract_flat': True,
-            'format': 'bestaudio/best',
-            'outtmpl': '%(title)s.%(ext)s',
+            "quiet": True,
+            "skip_download": True,
+            "extract_flat": True,
+            "format": "bestaudio/best",
+            "outtmpl": "%(title)s.%(ext)s",
         }
-    
+
     def retrieve_youtube_id(self, song: Song) -> bool:
-        
-        def get_best_match(results, song: Song) :
+
+        def get_best_match(results, song: Song):
             best_match = results[0]
-            if (song.duration is not None):
+            if song.duration is not None:
                 d = song.duration
                 d_diff = 1000000
                 for v in results:
-                    if v['duration'] and (abs(v['duration']-d) < d_diff):
-                        d_diff = abs(v['duration']-d)
+                    if v["duration"] and (abs(v["duration"] - d) < d_diff):
+                        d_diff = abs(v["duration"] - d)
                         best_match = v
             return best_match
 
@@ -67,28 +70,34 @@ class Downloader:
             if song.youtube_link is not None:
                 video = ydl.extract_info(song.youtube_link, download=False)
             else:
-                results = ydl.extract_info(f"ytsearch{10}:{song.get_search_query()}", download=False)['entries']
+                results = ydl.extract_info(
+                    f"ytsearch{10}:{song.get_search_query()}", download=False
+                )["entries"]
                 video = get_best_match(results, song)
-            video['ext'] = self.codec
-        song.youtube_id = video['id']
+            video["ext"] = self.codec
+        song.youtube_id = video["id"]
         song.filename = ydl.prepare_filename(video)
         return
 
-    def download(self,song: Song) -> bool:
+    def download(self, song: Song) -> bool:
         file_downloaded = False
         # self.lock.acquire()
         try:
             file_ydl_opts = {**self.ydl_opts_download}
-            file_ydl_opts['outtmpl'] = os.path.join(self.DOWNLOAD_PATH,f'{song.get_display_name()}.{self.codec}')
+            file_ydl_opts["outtmpl"] = os.path.join(
+                self.DOWNLOAD_PATH, f"{song.get_display_name()}.{self.codec}"
+            )
             with YoutubeDL(file_ydl_opts) as ydl:
                 ydl.download([song.youtube_id])
-            song.message = 'Download started'
+            song.message = "Download started"
             file_downloaded = True
-            self.logging_func('Download for "'+song.get_display_name()+'" Started!')
+            self.logging_func('Download for "' + song.get_display_name() + '" Started!')
         except:
             song.message = "Download couldn't start"
             file_downloaded = False
-            self.logging_func('Download for "'+song.get_display_name()+'" couldnt start!')
+            self.logging_func(
+                'Download for "' + song.get_display_name() + '" couldnt start!'
+            )
 
         if not file_downloaded:
             song.retry_count += 1
@@ -96,4 +105,3 @@ class Downloader:
             return False
         # self.lock.release()
         return True
-

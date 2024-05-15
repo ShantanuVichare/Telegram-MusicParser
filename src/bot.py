@@ -1,26 +1,34 @@
-
 import asyncio
 import os
 import time
 from multiprocessing import Process
 
-from telegram.ext import Application, CommandHandler, MessageHandler, InlineQueryHandler, CallbackQueryHandler
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    InlineQueryHandler,
+    CallbackQueryHandler,
+)
 import telegram.ext.filters as Filters
 from telegram.constants import SUPPORTED_WEBHOOK_PORTS
 
 import handlers
 
-WEBHOOK_PORT = int(os.environ.get('PORT', 80))
-TOKEN = os.environ.get('BOT_TOKEN')
-WEBHOOK_HOST = os.environ.get('WEBHOOK_HOST')
+WEBHOOK_PORT = int(os.environ.get("PORT", 80))
+TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")
 
 
 def validate():
-    assert WEBHOOK_PORT in SUPPORTED_WEBHOOK_PORTS, f"Supported ports are f{SUPPORTED_WEBHOOK_PORTS}"
+    assert (
+        WEBHOOK_PORT in SUPPORTED_WEBHOOK_PORTS
+    ), f"Supported ports are f{SUPPORTED_WEBHOOK_PORTS}"
+
 
 def main():
     """Start the bot."""
-    
+
     async def post_init(application: Application) -> None:
         await application.bot.set_my_commands(handlers.bot_commands)
 
@@ -41,63 +49,64 @@ def main():
     # application.add_handler(CallbackQueryHandler())
 
     # # on noncommand i.e message - get a response
-    application.add_handler(MessageHandler(Filters.TEXT, handlers.generate_response, block=False))
+    application.add_handler(
+        MessageHandler(Filters.TEXT, handlers.generate_response, block=False)
+    )
 
     application.add_handler(InlineQueryHandler(handlers.inlinequery, block=False))
-    
+
     # # log all errors
     application.add_error_handler(handlers.error)
 
     # Set Webhook if WEBHOOK_HOST is defined else Start polling
     webhook_status = None
     if WEBHOOK_HOST is not None:
-        print('Attempting setting webhook on port:', WEBHOOK_PORT)
+        print("Attempting setting webhook on port:", WEBHOOK_PORT)
         webhook_status = application.run_webhook(
             listen="0.0.0.0",
             port=int(WEBHOOK_PORT),
             url_path=TOKEN,
-            webhook_url='{}/{}'.format(WEBHOOK_HOST, TOKEN)
+            webhook_url="{}/{}".format(WEBHOOK_HOST, TOKEN),
         )
-    if not webhook_status :
+    if not webhook_status:
         print("webhook not configured.. Starting polling")
         application.run_polling(poll_interval=0.4, timeout=3600)
     else:
         print("webhook setup ok")
-        
+
 
 class Runner:
     def __init__(self):
-        os.makedirs('./temp', exist_ok=True)
-        self.state_fn = './temp/_run.tmp'
-    
+        os.makedirs("./temp", exist_ok=True)
+        self.state_fn = "./temp/_run.tmp"
+
     def already_running(self):
         return os.path.exists(self.state_fn)
-    
+
     def set_running(self):
-        open(self.state_fn, 'a').close()
-        
+        open(self.state_fn, "a").close()
+
     def stop_running(self):
         os.remove(self.state_fn)
-    
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     validate()
     runner = Runner()
     if runner.already_running():
         runner.stop_running()
-        print('Stopping existing instance')
+        print("Stopping existing instance")
     else:
         runner.set_running()
-        print('Running new instance')
+        print("Running new instance")
         proc = Process(target=main)
         proc.start()
         try:
             while runner.already_running():
                 time.sleep(2)
             proc.terminate()
-            print('Terminated via runner signal')
+            print("Terminated via runner signal")
         except:
             proc.terminate()
             runner.stop_running()
-            print('Stopping existing instance')
-    
+            print("Stopping existing instance")
