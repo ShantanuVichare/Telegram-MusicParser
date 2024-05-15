@@ -1,6 +1,7 @@
 
 import os
 import time
+import json
 import traceback
 import random
 from typing import List
@@ -11,6 +12,7 @@ from telegram.constants import ChatAction
 
 from constants import RANDOM_RESPONSES
 from modules.manager import Manager
+from modules import users as Users
 
 # import logging
 # Enable logging
@@ -41,8 +43,9 @@ Hey {}, Welcome to Music Parser 🎶
 ✨Directly share your Spotify, YouTube links here 👇🏻
 
 OR try the following:
-📥 /download <download_link> to only download on server local storage
-✅ /get <search_query> to search and download the first result
+⬇️ /get <media_link> to retrieve the song to you
+📥 /cache <download_link> to only download on server local storage
+🔍 /search <search_query> to search and download the first result
 ❔ /help to check supported link formats
         '''.format(fname))
 
@@ -50,10 +53,10 @@ async def help(update: Update, context: CallbackContext):
     """Send a message when the command /help is issued."""
     await update.message.reply_text('''
     Supported URL types:
-    Spotify Tracks: https://open.spotify.com/track/XXXXXXXXXXXXXXXXXXXXXX
-    Spotify Playlists: https://open.spotify.com/playlist/XXXXXXXXXXXXXXXXXXXXXX
-    Spotify Albums: https://open.spotify.com/album/XXXXXXXXXXXXXXXXXXXXXX
-    YouTube Videos: https://www.youtube.com/watch?v=XXXXXXXXXXX
+    Spotify Tracks: https://open.spotify.com/track/XXXX
+    Spotify Playlists: https://open.spotify.com/playlist/XXXX
+    Spotify Albums: https://open.spotify.com/album/XXXX
+    YouTube Videos: https://www.youtube.com/watch?v=XXXX
     ''')
 
 async def cache_only(update: Update, context: CallbackContext):
@@ -116,6 +119,30 @@ async def debug(update: Update, context: CallbackContext):
     else:
         supported_cmds = debugHandler.get_display_commands()
         await update.message.reply_text(f"Supported commands:\n{supported_cmds}")
+    return
+
+async def user(update: Update, context: CallbackContext):
+    """
+    Manage access related permissions /user is issued.
+    """
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING, read_timeout=15)
+    user = update.message.from_user
+    try:
+        assert len(context.args) != 0
+        if context.args[0] == 'token':
+            if Users.is_admin(user.id):
+                token = Users.get_token(user.id)
+                await update.message.reply_text(f"Request token (expiry {Users.expiration_interval}s):\n{token}")
+            return
+        if context.args[0] == 'request':
+            request_token = context.args[1]
+            authorized = Users.request_user(user.id, request_token)
+            if authorized:
+                await update.message.reply_text(f"Granted access")
+            else:
+                await update.message.reply_text(f"Incorrect creds")
+    except:
+        await update.message.reply_text(f"Paste token from Admin as:\n /user request <TOKEN>")
     return
 
 class DebugCommandHandler :

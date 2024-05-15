@@ -1,8 +1,10 @@
 
 import asyncio
 import os
+import time
+from multiprocessing import Process
 
-from telegram.ext import Application, Updater, CommandHandler, MessageHandler, InlineQueryHandler, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, InlineQueryHandler, CallbackQueryHandler
 import telegram.ext.filters as Filters
 from telegram.constants import SUPPORTED_WEBHOOK_PORTS
 
@@ -29,6 +31,7 @@ def main():
     application.add_handler(CommandHandler("help", handlers.help, block=False))
 
     application.add_handler(CommandHandler("debug", handlers.debug, block=False))
+    application.add_handler(CommandHandler("user", handlers.user, block=False))
 
     application.add_handler(CommandHandler("cache", handlers.cache_only, block=False))
 
@@ -45,12 +48,11 @@ def main():
     # # log all errors
     application.add_error_handler(handlers.error)
 
-    # Set Webhook on Heroku if WEBHOOK_HOST is defined else Start polling
+    # Set Webhook if WEBHOOK_HOST is defined else Start polling
     webhook_status = None
     if WEBHOOK_HOST is not None:
         print('Attempting setting webhook on port:', WEBHOOK_PORT)
         webhook_status = application.run_webhook(
-        # webhook_status = updater.start_webhook(
             listen="0.0.0.0",
             port=int(WEBHOOK_PORT),
             url_path=TOKEN,
@@ -63,6 +65,34 @@ def main():
         print("webhook setup ok")
         
 
+class Runner:
+    def __init__(self):
+        os.makedirs('./temp', exist_ok=True)
+        self.state_fn = './temp/_run.tmp'
+    
+    def already_running(self):
+        return os.path.exists(self.state_fn)
+    
+    def set_running(self):
+        open(self.state_fn, 'a').close()
+        
+    def stop_running(self):
+        os.remove(self.state_fn)
+    
+
 if __name__ == '__main__':
     validate()
-    main()
+    runner = Runner()
+    if runner.already_running():
+        runner.stop_running()
+        print('Stopping existing instance')
+    else:
+        runner.set_running()
+        print('Running new instance')
+        proc = Process(target=main)
+        proc.start()
+        while runner.already_running():
+            time.sleep(2)
+        proc.terminate()
+        print('Terminated via runner signal')
+    
