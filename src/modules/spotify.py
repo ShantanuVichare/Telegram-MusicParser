@@ -17,9 +17,9 @@ class Spotify:
         songs = [Song.from_spotify_track(song) for song in songs]
         return songs
 
-    def get_playlist(self, playlist_link=None, playlist_name="Daily Mix"):
+    def get_playlist(self, playlist_link=None, playlist_name=None):
         spotify = self.client
-        if playlist_link is None:
+        if playlist_name is not None:
             results = spotify.search(q=playlist_name, type="playlist")
             results = [
                 (
@@ -30,10 +30,13 @@ class Spotify:
                 for res in results["playlists"]["items"]
             ]
             playlist_link = results[0][2]["spotify"]
+        
+        playlist = spotify.playlist(playlist_link)
+        playlist_name = playlist["name"]
 
-        songs = spotify.playlist(playlist_link)["tracks"]["items"]
+        songs = playlist["tracks"]["items"]
         songs = [Song.from_spotify_track(song["track"]) for song in songs]
-
+        for song in songs: song.playlist = playlist_name
         return songs
 
     def get_song(self, song_link=None, song_name=None) -> Song:

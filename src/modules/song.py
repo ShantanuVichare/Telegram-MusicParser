@@ -1,6 +1,7 @@
 class Song:
     def __init__(self) -> None:
         self.name = None
+        self.playlist = None
         self.spotify_id = None
         self.spotify_link = None
         self.artists = []

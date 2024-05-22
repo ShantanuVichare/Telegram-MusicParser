@@ -1,4 +1,4 @@
-# import threading
+# import asyncio
 # from youtube_dl import YoutubeDL
 import os
 from yt_dlp import YoutubeDL
@@ -9,7 +9,7 @@ from modules.song import Song
 class Downloader:
     def __init__(self, DOWNLOAD_PATH: str, logger=print) -> None:
         self.DOWNLOAD_PATH = DOWNLOAD_PATH
-        # self.lock = threading.Lock()
+        # self.lock = asyncio.Lock()
         self.max_retries = 3
         self.logging_func = logger
         self.codec = "mp3"  # mp3 supports Embedding thumbnail
@@ -53,7 +53,7 @@ class Downloader:
             "outtmpl": "%(title)s.%(ext)s",
         }
 
-    def retrieve_youtube_id(self, song: Song) -> bool:
+    async def retrieve_youtube_id(self, song: Song) -> bool:
 
         def get_best_match(results, song: Song):
             best_match = results[0]
@@ -66,22 +66,28 @@ class Downloader:
                         best_match = v
             return best_match
 
-        with YoutubeDL(self.ydl_opts_search) as ydl:
-            if song.youtube_link is not None:
-                video = ydl.extract_info(song.youtube_link, download=False)
-            else:
-                results = ydl.extract_info(
-                    f"ytsearch{10}:{song.get_search_query()}", download=False
-                )["entries"]
-                video = get_best_match(results, song)
-            video["ext"] = self.codec
-        song.youtube_id = video["id"]
-        song.filename = ydl.prepare_filename(video)
+        try:
+            with YoutubeDL(self.ydl_opts_search) as ydl:
+                if song.youtube_link is not None:
+                    video = ydl.extract_info(song.youtube_link, download=False)
+                else:
+                    results = ydl.extract_info(
+                        f"ytsearch{10}:{song.get_search_query()}", download=False
+                    )["entries"]
+                    video = get_best_match(results, song)
+                video["ext"] = self.codec
+            song.youtube_id = video["id"]
+            song.filename = ydl.prepare_filename(video)
+            song.message = "Search successful"
+            self.logging_func('Search for "' + song.get_display_name() + '" successful!')
+        except:
+            song.message = "Search failed"
+            self.logging_func('Search for "' + song.get_display_name() + '" failed!')
         return
 
-    def download(self, song: Song, outfilepath: str) -> bool:
+    async def download(self, song: Song, outfilepath: str) -> bool:
         file_downloaded = False
-        # self.lock.acquire()
+        # await self.lock.acquire()
         try:
             outfilepath = outfilepath.replace(self.codec, "%(ext)s")
             file_ydl_opts = {**self.ydl_opts_download}

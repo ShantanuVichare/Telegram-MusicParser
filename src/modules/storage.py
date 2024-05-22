@@ -1,5 +1,5 @@
 import os
-import threading
+import asyncio
 from datetime import datetime, timedelta
 import json
 
@@ -36,7 +36,7 @@ def incomplete_download(filepath: str):
 class Storage:
     def __init__(self, DOWNLOAD_PATH) -> None:
         self.DOWNLOAD_PATH = DOWNLOAD_PATH
-        self.logfile_lock = threading.Lock()
+        self.logfile_lock = asyncio.Lock()
         self.logfile_path = os.path.join(self.DOWNLOAD_PATH, LOG_FILENAME)
         self.index_path = os.path.join(self.DOWNLOAD_PATH, INDEX_FILENAME)
         if os.path.exists(self.index_path):
@@ -44,8 +44,8 @@ class Storage:
         else:
             self.index = rebuild_index()
     
-    def add_to_logfile(self, log_string):
-        with self.logfile_lock:
+    async def add_to_logfile(self, log_string):
+        async with self.logfile_lock:
             with open(self.logfile_path, "a", encoding="utf-8") as f:
                 f.write(log_string + "\n")
                 f.flush()
@@ -78,7 +78,7 @@ class Storage:
 
     def clear_outdated(self):
         now = datetime.utcnow()
-        delta = timedelta(days=1)
+        delta = timedelta(days=3)
         self.index = {
             k: v
             for k, v in self.index.items()

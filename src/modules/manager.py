@@ -1,11 +1,10 @@
 import asyncio
 import os
 import time
-import threading
 from typing import List, Tuple
 from telegram.constants import ChatAction
 from telegram.ext import CallbackContext
-from telegram import Message, Update
+from telegram import Message, Update, InputMediaAudio
 
 from constants import (
     SPOTIFY_ALBUM,
@@ -34,11 +33,11 @@ class Manager:
     def __init__(
         self, update: Update, context: CallbackContext, upload: bool = True
     ) -> None:
-        # self.lock = threading.Lock()
-        self.thread_access = threading.BoundedSemaphore(value=8)
+        self.download_sem = asyncio.BoundedSemaphore(5)
         self.update = update
         self.context = context
         self.upload_to_chat = upload
+        self.combine_files = False
         self.storage = Storage(DOWNLOAD_PATH)
         self.spotify = Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
 
@@ -63,6 +62,9 @@ class Manager:
         songs = [song for song in songs if song is not None]
         if len(songs) > 0:
             msg = await self.interact(msg=msg, text=f"Processing {len(songs)} song(s)")
+        if len(songs) > 1:
+            self.combine_files = True
+            self.upload_to_chat = False
         return (songs, msg)
 
     async def process_songs(self, songs: List[Song], prev_msg: Message = None):
@@ -108,16 +110,32 @@ class Manager:
                 song for song in songs if song.message != "Download completed"
             ]
 
-        await self.interact(
-            text="Downloaded {}/{} songs".format(
-                len(songs) - len(incomplete_songs), len(songs)
-            )
-        )
         # retry_msg = None
         # if len(incomplete_songs) > 0:
         #     retry_msg = await self.interact(
         #         text="Retrying {} songs".format(len(incomplete_songs))
         #     )
+
+        msg = None
+        if self.combine_files:
+            msg = await self.interact(
+                text="Download completed! Now Uploading {} songs".format(len(songs)),
+                action=ChatAction.UPLOAD_DOCUMENT,
+                group_filenames=[self.storage.get_filepath(song.filename) for song in songs  if song.message == "Download completed"],
+            )
+            await self.interact(
+                msg=msg,
+                text="Downloaded {}/{} songs".format(
+                    len(songs) - len(incomplete_songs), len(songs)
+                )
+            )
+        else:
+            await self.interact(
+                msg=msg,
+                text="Downloaded {}/{} songs".format(
+                    len(songs) - len(incomplete_songs), len(songs)
+                )
+            )
 
         print(
             "Songs' final Message:\n\t",
@@ -131,13 +149,13 @@ class Manager:
 
     async def process_song(self, song: Song):
 
-        self.thread_access.acquire()
+        await self.download_sem.acquire()
         log_fn = song.add_log
         msg = None
         try:
             # Update YouTube data
             downloader = Downloader(DOWNLOAD_PATH, logger=log_fn)
-            downloader.retrieve_youtube_id(song)
+            await downloader.retrieve_youtube_id(song)
             
             if song.query is not None:
                 log_fn(f"Searching: {song.query}")
@@ -157,7 +175,7 @@ class Manager:
                 # Initiate Download
                 if song.retry_count < downloader.max_retries:
                     log_fn("Downloader try: " + str(song.retry_count))
-                    downloader.download(song, self.storage.get_filepath(song.filename))
+                    await downloader.download(song, self.storage.get_filepath(song.filename))
 
                 # Verify Initiation
                 if song.message == "Download couldn't start":
@@ -178,20 +196,7 @@ class Manager:
 
                 # Download Timeout
                 start_time = time.time()
-                time_emojis = [
-                    "🕛",
-                    "🕐",
-                    "🕑",
-                    "🕒",
-                    "🕓",
-                    "🕔",
-                    "🕕",
-                    "🕖",
-                    "🕗",
-                    "🕘",
-                    "🕙",
-                    "🕚",
-                ]
+                time_emojis = ["🕛","🕐","🕑","🕒","🕓","🕔","🕕","🕖","🕗","🕘","🕙","🕚",]
                 time_emoji_ind = 0
                 while not self.storage.find_file(song):
                     if time.time() - start_time >= 300:  # Timeout of 5 mins
@@ -216,21 +221,24 @@ class Manager:
                 raise Exception("Download couldn't complete")
 
             # Succesful Download - Rename and add to index
-            song.message = "Download completed"
             # self.storage.finalize_filename(song)
+            song.message = "Download completed"
             log_fn("Download completed: " + song.get_display_name())
             self.storage.update_index(song)
             log_fn("Index Updated: " + song.get_display_name())
-
-            # Send to TG servers
             msg = await self.interact(
                 msg=msg,
-                text="Download completed! Now Uploading: " + song.get_display_name(),
-                action=ChatAction.UPLOAD_DOCUMENT,
-                filename=self.storage.get_filepath(song.filename),
+                text="Download completed: " + song.get_display_name(),
             )
-            # await self.context.bot.send_document(chat_id=self.update.effective_chat.id, document=open(filename, 'rb'))
+
+            # Send to TG servers
             if self.upload_to_chat:
+                msg = await self.interact(
+                    msg=msg,
+                    text="Uploading: " + song.get_display_name(),
+                    action=ChatAction.UPLOAD_DOCUMENT,
+                    filename=self.storage.get_filepath(song.filename),
+                )
                 self.storage.mark_uploaded(song)
                 song.message = "Upload completed"
                 log_fn("Uploaded: " + song.get_display_name())
@@ -242,19 +250,19 @@ class Manager:
             print(
                 f"Thread failed for Song: {song.get_display_name()}\nLogs:\n{song_logs}"
             )
-            self.storage.add_to_logfile(song_logs)
-            if msg is not None:
-                msg = await self.interact(
-                    msg=msg,
-                    text="Download failed for: " + song.get_display_name(),
-                    action=ChatAction.TYPING,
-                )
+            await self.storage.add_to_logfile(song_logs)
+            msg = await self.interact(
+                msg=msg,
+                text="Download failed for: " + song.get_display_name(),
+                action=ChatAction.TYPING,
+            )
+        finally:
+            self.download_sem.release()
 
-        self.thread_access.release()
         return
 
     async def interact(
-        self, msg: Message = None, text=None, action=None, filename=None
+        self, msg: Message = None, text=None, action=None, filename=None, group_filenames=None,
     ):
         # self.lock.acquire()
         if msg is not None:
@@ -263,7 +271,8 @@ class Manager:
                 msg = await msg.edit_text(text)
         elif text is not None:
             msg = await self.context.bot.send_message(
-                chat_id=self.update.effective_chat.id, text=text
+                chat_id=self.update.effective_chat.id, text=text,
+                disable_notification=True,
             )
 
         if action is not None:
@@ -279,6 +288,14 @@ class Manager:
                 read_timeout=600,
                 document=open(filename, "rb"),
             )
-            # await self.context.bot.send_media_group()
+        if group_filenames:
+            await self.context.bot.send_media_group(
+                chat_id=self.update.effective_chat.id,
+                read_timeout=600,
+                media=[
+                    InputMediaAudio(open(filename, "rb"))
+                    for filename in group_filenames
+                ]
+            )
         # self.lock.release()
         return msg
