@@ -2,31 +2,44 @@ import os
 import asyncio
 from datetime import datetime, timedelta
 import json
+import zipfile
 
 from modules.song import Song
+import random
+import string
 
+LOG = "LOG"
 LOG_FILENAME = "logfile.txt"
+INDEX = "INDEX"
 INDEX_FILENAME = "index.json"
 FILENAME_FIELD = "filename"
 TIMESTAMP_FIELD = "timestamp"
-SELF = "SELF"
-UPLOADED = "UPLOADED"
+UPLOADED_FIELD = "uploaded"
+
+
+def generate_random_string(length):
+    letters = string.ascii_letters + string.digits
+    return ''.join(random.choice(letters) for _ in range(length))
 
 
 def add_to_index(filename: str):
     return {
         FILENAME_FIELD: filename,
         TIMESTAMP_FIELD: datetime.utcnow().isoformat(),
-        UPLOADED: False,
+        UPLOADED_FIELD: False,
     }
 
 
-def rebuild_index():
-    return {SELF: add_to_index(INDEX_FILENAME)}
+def rebuild_index(base_index={}):
+    return {
+        **base_index,
+        INDEX: add_to_index(INDEX_FILENAME),
+        LOG: add_to_index(INDEX_FILENAME),
+    }
 
 
 def set_uploaded(obj):
-    obj[UPLOADED] = True
+    obj[UPLOADED_FIELD] = True
 
 
 def incomplete_download(filepath: str):
@@ -34,11 +47,11 @@ def incomplete_download(filepath: str):
 
 
 class Storage:
-    def __init__(self, DOWNLOAD_PATH) -> None:
-        self.DOWNLOAD_PATH = DOWNLOAD_PATH
+    def __init__(self, storage_location) -> None:
+        self.storage_location = storage_location
         self.logfile_lock = asyncio.Lock()
-        self.logfile_path = os.path.join(self.DOWNLOAD_PATH, LOG_FILENAME)
-        self.index_path = os.path.join(self.DOWNLOAD_PATH, INDEX_FILENAME)
+        self.logfile_path = os.path.join(self.storage_location, LOG_FILENAME)
+        self.index_path = os.path.join(self.storage_location, INDEX_FILENAME)
         if os.path.exists(self.index_path):
             self.load_index()
         else:
@@ -52,8 +65,8 @@ class Storage:
                 
     def get_downloaded_filepaths(self):
         return [
-            os.path.join(self.DOWNLOAD_PATH, file)
-            for file in os.listdir(self.DOWNLOAD_PATH)
+            os.path.join(self.storage_location, file)
+            for file in os.listdir(self.storage_location)
         ]
 
     def load_index(self):
@@ -68,7 +81,7 @@ class Storage:
 
     def clean_files(self):
         updated_filepaths = [
-            os.path.join(self.DOWNLOAD_PATH, v[FILENAME_FIELD])
+            os.path.join(self.storage_location, v[FILENAME_FIELD])
             for v in self.index.values()
         ]
         for fp in self.get_downloaded_filepaths():
@@ -83,14 +96,14 @@ class Storage:
             k: v
             for k, v in self.index.items()
             if (now - datetime.fromisoformat(v[TIMESTAMP_FIELD]) < delta)
-            and (os.path.exists(os.path.join(self.DOWNLOAD_PATH, v[FILENAME_FIELD])))
+            and (os.path.exists(os.path.join(self.storage_location, v[FILENAME_FIELD])))
         }
-        self.index[SELF] = rebuild_index()[SELF]
+        self.index = rebuild_index(self.index)
         self.clean_files()
         return
 
     def clear_uploaded(self):
-        self.index = {k: v for k, v in self.index.items() if not v[UPLOADED]}
+        self.index = {k: v for k, v in self.index.items() if not v[UPLOADED_FIELD]}
         self.clean_files()
         return
 
@@ -102,7 +115,7 @@ class Storage:
         return
 
     def find_file(self, song: Song):
-        if song.filename in os.listdir(self.DOWNLOAD_PATH):
+        if song.filename in os.listdir(self.storage_location):
             return True
         return False
 
@@ -113,7 +126,16 @@ class Storage:
             return None
 
     def get_filepath(self, filename: str):
-        return os.path.join(self.DOWNLOAD_PATH, filename)
+        return os.path.join(self.storage_location, filename)
+    
+    def get_zipped(self, filenames):
+        filepaths = [self.get_filepath(filename) for filename in filenames]
+        zip_filename = generate_random_string(10) + ".zip"
+        zip_filename = self.get_filepath(zip_filename)
+        with zipfile.ZipFile(zip_filename, "w") as zip_file:
+            for filepath,filename in zip(filepaths,filenames):
+                zip_file.write(filepath, filename)
+        return zip_filename
 
     def finalize_filename(self, song: Song):
         extension = song.filename.split(".")[-1]

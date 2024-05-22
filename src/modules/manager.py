@@ -7,7 +7,7 @@ from traceback import format_exception
 
 from telegram.constants import ChatAction
 from telegram.ext import CallbackContext
-from telegram import Message, Update, InputMediaAudio
+from telegram import Message, Update, InputMediaDocument, InputMediaAudio
 
 from constants import (
     SPOTIFY_ALBUM,
@@ -41,7 +41,7 @@ class Manager:
         self.context = context
         self.upload_to_chat = upload
         self.combine_files = False
-        self.storage = Storage(DOWNLOAD_PATH)
+        self.storage = Storage(storage_location=DOWNLOAD_PATH)
         self.spotify = Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
 
     async def initialize_media(
@@ -65,9 +65,9 @@ class Manager:
         songs = [song for song in songs if song is not None]
         if len(songs) > 0:
             msg = await self.interact(msg=msg, text=f"Processing {len(songs)} song(s)")
-        if len(songs) > 1:
-            self.combine_files = True
-            self.upload_to_chat = False
+        # if len(songs) > 1:
+        #     self.combine_files = True
+        #     self.upload_to_chat = False
         return (songs, msg)
 
     async def process_songs(self, songs: List[Song], prev_msg: Message = None):
@@ -103,7 +103,6 @@ class Manager:
         # Ensuring completion of threads
         await task_exec_future
 
-        await msg.delete()
         if self.upload_to_chat:
             incomplete_songs = [
                 song for song in songs if song.message != "Upload completed"
@@ -119,22 +118,16 @@ class Manager:
         #         text="Retrying {} songs".format(len(incomplete_songs))
         #     )
 
-        msg = None
         if self.combine_files:
             msg = await self.interact(
-                text="Download completed! Now Uploading {} songs".format(len(songs)),
-                action=ChatAction.UPLOAD_DOCUMENT,
-                group_filenames=[self.storage.get_filepath(song.filename) for song in songs  if song.message == "Download completed"],
-            )
-            await self.interact(
                 msg=msg,
-                text="Downloaded {}/{} songs".format(
-                    len(songs) - len(incomplete_songs), len(songs)
-                )
+                text="Uploading {} songs".format(len(songs) - len(incomplete_songs)),
+                action=ChatAction.UPLOAD_DOCUMENT,
+                filename=self.storage.get_zipped([song.filename for song in songs if song.message == "Download completed"]),
+                # group_filenames=[self.storage.get_filepath(song.filename) for song in songs  if song.message == "Download completed"],
             )
         else:
             await self.interact(
-                msg=msg,
                 text="Downloaded {}/{} songs".format(
                     len(songs) - len(incomplete_songs), len(songs)
                 )
@@ -146,6 +139,8 @@ class Manager:
                 [str(song.message) + " - " + song.get_display_name() for song in songs]
             ),
         )
+        
+        await msg.delete()
 
         self.storage.save_index()
         return incomplete_songs
@@ -288,20 +283,24 @@ class Manager:
 
         # self.lock.release()
 
-        if (self.upload_to_chat is True) and (filename is not None):
+        if filename:
+            document = open(filename, "rb")
             await self.context.bot.send_document(
                 chat_id=self.update.effective_chat.id,
                 read_timeout=600,
-                document=open(filename, "rb"),
+                write_timeout=600,
+                document=document,
             )
         if group_filenames:
+            media=[
+                InputMediaAudio(open(filename, "rb"))
+                for filename in group_filenames
+            ]
             await self.context.bot.send_media_group(
                 chat_id=self.update.effective_chat.id,
                 read_timeout=600,
-                media=[
-                    InputMediaAudio(open(filename, "rb"))
-                    for filename in group_filenames
-                ]
+                write_timeout=600,
+                media=media
             )
         # self.lock.release()
         return msg
