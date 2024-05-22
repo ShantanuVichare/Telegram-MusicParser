@@ -79,14 +79,13 @@ class Downloader:
         song.filename = ydl.prepare_filename(video)
         return
 
-    def download(self, song: Song) -> bool:
+    def download(self, song: Song, outfilepath: str) -> bool:
         file_downloaded = False
         # self.lock.acquire()
         try:
+            outfilepath = outfilepath.replace(self.codec, "%(ext)s")
             file_ydl_opts = {**self.ydl_opts_download}
-            file_ydl_opts["outtmpl"] = os.path.join(
-                self.DOWNLOAD_PATH, f"{song.get_display_name()}.{self.codec}"
-            )
+            file_ydl_opts["outtmpl"] = outfilepath
             with YoutubeDL(file_ydl_opts) as ydl:
                 ydl.download([song.youtube_id])
             song.message = "Download started"

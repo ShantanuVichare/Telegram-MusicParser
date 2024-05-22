@@ -12,6 +12,7 @@ class Song:
         self.bit_rate = None
         self.message = None
         self.query = None
+        self.logs = []
 
     def from_spotify_track(spotify_track):
         ret_obj = Song()
@@ -36,7 +37,7 @@ class Song:
         if self.query is not None:
             return self.query
         return (
-            self.name + " - Audio - " + ", ".join([artist for artist in self.artists])
+            self.name + " - Official Audio - " + ", ".join([artist for artist in self.artists])
         )
 
     def get_display_name(self) -> str:
@@ -48,8 +49,11 @@ class Song:
             display_name = self.filename
         return display_name
 
-    # def get_filename(self, extension='.mp3') -> str:
-    #     filename = self.name
-    #     if self.artists:
-    #         filename = ', '.join([artist for artist in self.artists]) + ' - ' + filename
-    #     return filename + extension
+    def add_log(self, *args):
+        log_str = " ".join([str(arg) for arg in args])
+        self.logs.append(log_str)
+        # For debugging
+        print(log_str)
+
+    def get_logs(self):
+        return "\n-    ".join(self.logs)

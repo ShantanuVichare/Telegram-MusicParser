@@ -1,9 +1,11 @@
 import os
+import threading
 from datetime import datetime, timedelta
 import json
 
 from modules.song import Song
 
+LOG_FILENAME = "logfile.txt"
 INDEX_FILENAME = "index.json"
 FILENAME_FIELD = "filename"
 TIMESTAMP_FIELD = "timestamp"
@@ -34,12 +36,20 @@ def incomplete_download(filepath: str):
 class Storage:
     def __init__(self, DOWNLOAD_PATH) -> None:
         self.DOWNLOAD_PATH = DOWNLOAD_PATH
+        self.logfile_lock = threading.Lock()
+        self.logfile_path = os.path.join(self.DOWNLOAD_PATH, LOG_FILENAME)
         self.index_path = os.path.join(self.DOWNLOAD_PATH, INDEX_FILENAME)
         if os.path.exists(self.index_path):
             self.load_index()
         else:
             self.index = rebuild_index()
-
+    
+    def add_to_logfile(self, log_string):
+        with self.logfile_lock:
+            with open(self.logfile_path, "a", encoding="utf-8") as f:
+                f.write(log_string + "\n")
+                f.flush()
+                
     def get_downloaded_filepaths(self):
         return [
             os.path.join(self.DOWNLOAD_PATH, file)

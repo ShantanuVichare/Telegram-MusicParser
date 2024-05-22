@@ -43,15 +43,15 @@ class Manager:
         self.spotify = Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
 
     async def initialize_media(
-        self, links: List[str] = None, query: str = None
+        self, possible_links: List[str] = None, query: str = None
     ) -> Tuple[List[Song], Message]:
         songs = []
         msg = None
         if query is not None:
             songs += [Song.from_query(query)]
-            msg = await self.interact(text="Identified a search query")
+            msg = await self.interact(text="Processing a search query")
         else:
-            for link in links:
+            for link in possible_links:
                 if SPOTIFY_TRACK in link:
                     songs += [self.spotify.get_song(song_link=link)]
                 elif SPOTIFY_PLAYLIST in link:
@@ -60,15 +60,17 @@ class Manager:
                     songs += self.spotify.get_album(album_link=link)
                 elif (YOUTUBE_VIDEO in link) or (YOUTUBE_SHORT in link):
                     songs += [Song.from_youtube_link(youtube_link=link)]
-            msg = await self.interact(text=f"Identified {len(links)} links")
+        songs = [song for song in songs if song is not None]
+        if len(songs) > 0:
+            msg = await self.interact(msg=msg, text=f"Processing {len(songs)} song(s)")
         return (songs, msg)
 
-    async def process_songs(self, songs: List[Song], msg: Message):
+    async def process_songs(self, songs: List[Song], prev_msg: Message = None):
 
         self.storage.clear_outdated()
 
         msg = await self.interact(
-            msg=msg, text="Downloading {} song(s)".format(len(songs))
+            msg=prev_msg, text="Downloading {} song(s)".format(len(songs))
         )
 
         tasks = set()
@@ -111,11 +113,11 @@ class Manager:
                 len(songs) - len(incomplete_songs), len(songs)
             )
         )
-        retry_msg = None
-        if len(incomplete_songs) > 0:
-            retry_msg = await self.interact(
-                text="Retrying {} songs".format(len(incomplete_songs))
-            )
+        # retry_msg = None
+        # if len(incomplete_songs) > 0:
+        #     retry_msg = await self.interact(
+        #         text="Retrying {} songs".format(len(incomplete_songs))
+        #     )
 
         print(
             "Songs' final Message:\n\t",
@@ -125,41 +127,41 @@ class Manager:
         )
 
         self.storage.save_index()
-        return incomplete_songs, retry_msg
+        return incomplete_songs
 
     async def process_song(self, song: Song):
 
         self.thread_access.acquire()
-        logs = []
-        log = logs.append
-        # log = print # For debugging
-        downloader = Downloader(DOWNLOAD_PATH, logger=log)
-        log("Started: " + song.get_display_name())
+        log_fn = song.add_log
+        msg = None
         try:
+            # Update YouTube data
+            downloader = Downloader(DOWNLOAD_PATH, logger=log_fn)
+            downloader.retrieve_youtube_id(song)
+            
+            if song.query is not None:
+                log_fn(f"Searching: {song.query}")
+            
+            log_fn(f"Started: {song.get_display_name()}\tRetreived YouTube ID: {song.youtube_id}")
             msg = await self.interact(
                 text="Searching: " + song.get_display_name(), action=ChatAction.TYPING
             )
-            log("Found: " + song.get_display_name())
-
-            # Update YouTube data
-            downloader.retrieve_youtube_id(song)
-            log("Retreived YouTube ID: " + song.youtube_id)
 
             # Check Index for pre-downloaded files
             if self.storage.find_file(song):
-                log("Indexed file found: " + str(self.storage.get_index(song)))
+                log_fn("Indexed file found: " + str(self.storage.get_index(song)))
             else:
                 # Ensure storage availability
                 # self.storage.clear_uploaded()
 
                 # Initiate Download
                 if song.retry_count < downloader.max_retries:
-                    log("Downloader try: " + str(song.retry_count))
-                    downloader.download(song)
+                    log_fn("Downloader try: " + str(song.retry_count))
+                    downloader.download(song, self.storage.get_filepath(song.filename))
 
                 # Verify Initiation
                 if song.message == "Download couldn't start":
-                    log("Download couldn't start: " + song.get_display_name())
+                    log_fn("Download couldn't start: " + song.get_display_name())
                     msg = await self.interact(
                         msg=msg,
                         text="Download couldn't start: " + song.get_display_name(),
@@ -167,7 +169,7 @@ class Manager:
                     )
                     raise Exception("Download couldn't start")
                 elif song.message == "Download started":
-                    log("Download started: " + song.get_display_name())
+                    log_fn("Download started: " + song.get_display_name())
                     msg = await self.interact(
                         msg=msg,
                         text="Download started: " + song.get_display_name(),
@@ -205,7 +207,7 @@ class Manager:
             # Verify completion
             if not self.storage.find_file(song):
                 song.message = "Download couldn't complete"
-                log("Download couldn't complete: " + song.get_display_name())
+                log_fn("Download couldn't complete: " + song.get_display_name())
                 msg = await self.interact(
                     msg=msg,
                     text="Download couldn't complete: " + song.get_display_name(),
@@ -216,9 +218,9 @@ class Manager:
             # Succesful Download - Rename and add to index
             song.message = "Download completed"
             # self.storage.finalize_filename(song)
-            log("Download completed: " + song.get_display_name())
+            log_fn("Download completed: " + song.get_display_name())
             self.storage.update_index(song)
-            log("Index Updated: " + song.get_display_name())
+            log_fn("Index Updated: " + song.get_display_name())
 
             # Send to TG servers
             msg = await self.interact(
@@ -231,20 +233,22 @@ class Manager:
             if self.upload_to_chat:
                 self.storage.mark_uploaded(song)
                 song.message = "Upload completed"
-                log("Uploaded: " + song.get_display_name())
+                log_fn("Uploaded: " + song.get_display_name())
             self.storage.save_index()
             await msg.delete()
         except Exception as e:
-            msg = await self.interact(
-                msg=msg,
-                text="Download failed for: " + song.get_display_name(),
-                action=ChatAction.TYPING,
-            )
-            print("Exception:", e)
-            print_logs = "\n-    ".join(logs)
+            log_fn("Exception:", e)
+            song_logs = song.get_logs()
             print(
-                f"Thread failed for Song: {song.get_display_name()}\nLogs:\n{print_logs}"
+                f"Thread failed for Song: {song.get_display_name()}\nLogs:\n{song_logs}"
             )
+            self.storage.add_to_logfile(song_logs)
+            if msg is not None:
+                msg = await self.interact(
+                    msg=msg,
+                    text="Download failed for: " + song.get_display_name(),
+                    action=ChatAction.TYPING,
+                )
 
         self.thread_access.release()
         return

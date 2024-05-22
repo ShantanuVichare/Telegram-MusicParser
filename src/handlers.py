@@ -70,34 +70,33 @@ async def help(update: Update, context: CallbackContext):
 async def cache_only(update: Update, context: CallbackContext):
     """To only download files on user directory"""
     m = Manager(update, context, upload=False)
-    songs, msg = await m.initialize_media(links=context.args)
+    songs, msg = await m.initialize_media(possible_links=context.args)
     if msg is None:
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text="Invalid URL"
         )
         return
-    await m.process_songs(songs, msg)
+    await m.process_songs(songs)
+    await msg.delete()
 
 
 async def generate_response(update: Update, context: CallbackContext):
     """Respond to user message."""
-    user_text = update.message.text
-    if (
-        ("open.spotify.com" in user_text)
-        or ("youtube.com" in user_text)
-        or ("youtu.be" in user_text)
-        or (update.message.via_bot)
-    ):
-        m = Manager(update, context)
-        is_query = update.message.via_bot and update.message.via_bot.is_bot
-        # TODO use is_query
-        songs, msg = await m.initialize_media(query=user_text)
-        if msg is None:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text="Invalid URL"
-            )
-            return
+    m = Manager(update, context)
+    is_bot_query = update.message.via_bot and update.message.via_bot.is_bot
+    if is_bot_query:
+        # Inline query
+        query = update.message.via_bot.query
+        songs, msg = await m.initialize_media(query=query)
+    else:
+        songs, msg = await m.initialize_media(possible_links=update.message.text.split())
+        
+    if len(songs) > 0:
         await m.process_songs(songs, msg)
+    elif is_bot_query:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text="Invalid URL/query"
+        )
     else:
         await update.message.reply_text(random.choice(RANDOM_RESPONSES))
 
@@ -107,19 +106,19 @@ async def get_media(update: Update, context: CallbackContext):
     if len(context.args) == 0:
         return
     m = Manager(update, context)
-    songs, msg = await m.initialize_media(links=context.args)
+    songs, msg = await m.initialize_media(possible_links=context.args)
     if msg is None:
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text="Invalid URL"
         )
         return
 
-    retry_songs, retry_msg = await m.process_songs(songs, msg)
+    retry_songs = await m.process_songs(songs)
     process_retry_count = 0
     while len(retry_songs) > 0 and process_retry_count > 0:
         process_retry_count -= 1
-        retry_songs, retry_msg = await m.process_songs(retry_songs, retry_msg)
-    await retry_msg.delete()
+        retry_songs = await m.process_songs(retry_songs)
+    await msg.delete()
 
 
 async def search(update: Update, context: CallbackContext):
