@@ -3,9 +3,9 @@ channels:
   - defaults
 dependencies:
   - pip
-  - python=3.11
+  - python=3.11.11
   - pip:
-      - spotipy
-      - python-telegram-bot[webhooks] # reference: https://github.com/python-telegram-bot/python-telegram-bot?tab=readme-ov-file#optional-dependencies
-      - youtube-dl
-      - yt-dlp
+      - spotipy==2.24.0
+      - python-telegram-bot[webhooks]==21.9 # reference: https://github.com/python-telegram-bot/python-telegram-bot?tab=readme-ov-file#optional-dependencies
+      - yt-dlp==2024.12.23
+  #     - youtube-dl

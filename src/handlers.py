@@ -11,7 +11,7 @@ from telegram.constants import ChatAction
 
 from constants import RANDOM_RESPONSES
 from modules.manager import Manager
-from modules import users as Users
+from modules.users import AuthManager
 
 # import logging
 # Enable logging
@@ -159,7 +159,7 @@ async def debug(update: Update, context: CallbackContext):
     Send a message when the command /debug is issued.
     Just a testing command!
     """
-    if not Users.is_admin(update.message.from_user.id):
+    if not AuthManager.is_admin(update.message.from_user.id):
         await update.message.reply_text(f"Unsupported command")
         return
 
@@ -187,16 +187,22 @@ async def user(update: Update, context: CallbackContext):
     user = update.message.from_user
     try:
         assert len(context.args) != 0
+        if context.args[0] == "me":
+            status = "Admin" if AuthManager.is_admin(user.id) else "Authorized" if AuthManager.is_authorized(user.id) else "Unauthorized"
+            await update.message.reply_text(
+                f"Your ID is {user.id} and you are: {status}"
+            )
         if context.args[0] == "token":
-            if Users.is_admin(user.id):
-                token = Users.get_token(user.id)
+            token = AuthManager.generate_token(user.id)
+            if token:
                 await update.message.reply_text(
-                    f"Request token (expiry {Users.expiration_interval}s):\n{token}"
+                    f"Request token:\n`{token}`"
                 )
-            return
+            else:
+                await update.message.reply_text(f"You cannot issue tokens")
         if context.args[0] == "request":
             request_token = context.args[1]
-            authorized = Users.request_user(user.id, request_token)
+            authorized = AuthManager.authorize_user(user.id, request_token)
             if authorized:
                 await update.message.reply_text(f"Granted access")
             else:

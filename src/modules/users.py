@@ -3,60 +3,53 @@ import uuid
 import json
 import time
 
-filepath = os.environ["USERS_METADATA_PATH"]
-expiration_interval = 60  # seconds
+admin_users = os.environ.get("ADMIN_USER_IDS")
+if not admin_users:
+    raise ValueError("ADMIN_USER_IDS environment variable is not set")
+admin_users = [int(user_id) for user_id in admin_users.split(",")]
 
-user_data = None
-token = {"value": None, "timestamp": time.time()}
+expiration_interval = 60*15  # seconds
+tokens = dict() # {token: {"user_id": user_id, "timestamp": timestamp}}
+authorized_user_tokens = dict() # {user_id: token}
 
-
-def _refresh_data(updated_data=None):
-    # If new data, persist it
-    if updated_data:
-        with open(filepath, "w") as f:
-            json.dump(updated_data, f)
-    # Sync with persisted data
-    global user_data
-    with open(filepath, "r") as f:
-        user_data = json.load(f)
-    return
-
-
-def _refresh_token():
-    global token
-    token["value"] = str(uuid.uuid4())[:4]
-    token["timestamp"] = time.time()
-    return
-
-
-_refresh_data()
-
-
-def is_allowed(user_id):
-    global user_data
-    return user_id in user_data["allowed_users"]
-
-
-def is_admin(user_id):
-    global user_data
-    return user_id in user_data["admin_users"]
-
-
-def get_token(admin_user_id):
-    if not is_admin(admin_user_id):
+class AuthManager:
+        
+    def is_authorized(user_id: int):
+        user_token = authorized_user_tokens.get(user_id)
+        if not user_token:
+            return False
+        if time.time() - tokens[user_token]["timestamp"] > expiration_interval:
+            del tokens[user_token]
+            del authorized_user_tokens[user_id]
+            return False
+        return True
+    
+    def is_admin(user_id: int):
+        return user_id in admin_users
+    
+    def generate_token(user_id: int):
+        if not AuthManager.is_admin(user_id):
+            return None
+        token = str(uuid.uuid4())[:4]
+        tokens[token] = {"timestamp": time.time(), "user_id": None}
+        return token
+    
+    def authorize_user(user_id: int, new_token: str):
+        # Cases:
+        # 1. User is already authorized with valid token
+        # 2. User was authorized but now invalid token
+        # 3. User was not authorized
+        # 4. User is admin
+        # 5. Invalid new token
+        # Unhandled: User is authorized but needs to be refreshed with newer token
+        
+        if AuthManager.is_admin(user_id) or AuthManager.is_authorized(user_id):
+            return True
+        
+        if new_token in tokens and (time.time() - tokens[new_token]["timestamp"]) < expiration_interval:
+            tokens[new_token]["user_id"] = user_id
+            authorized_user_tokens[user_id] = new_token
+            return True
         return False
-    _refresh_token()
-    return token["value"]
 
 
-def request_user(user_id, token_value):
-    global user_data
-    if user_id in user_data["allowed_users"]:
-        return True
-    if token_value == token["value"] and (
-        time.time() - token["timestamp"] < expiration_interval
-    ):
-        user_data["allowed_users"].append(user_id)
-        _refresh_data(user_data)
-        return True
-    return False
