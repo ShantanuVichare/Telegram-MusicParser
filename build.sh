@@ -4,8 +4,12 @@ set -o errexit
 
 uname -a
 
+export PROJECT_ROOT=$RENDER_PROJECT_ROOT
+# export PROJECT_ROOT=$HOME/project
+echo "Project root: $PROJECT_ROOT"
+
 # Remove existing miniconda installation
-if [ -d "$HOME/miniconda" ];
+if [ -d "$PROJECT_ROOT/miniconda" ];
 then
     echo "Existing miniconda installation found"
     # echo "Removing existing miniconda installation"
@@ -14,10 +18,10 @@ else
     echo "No existing miniconda installation found... Installing Miniconda"
     # Install Miniconda
     wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -q -O miniconda.sh
-    bash miniconda.sh -b -p $HOME/miniconda
+    bash miniconda.sh -b -p $PROJECT_ROOT/miniconda
 fi
 
-export PATH="$HOME/miniconda/bin:$PATH"
+export PATH="$PROJECT_ROOT/miniconda/bin:$PATH"
 conda init bash
 source ~/.bashrc
 
