@@ -44,6 +44,7 @@ class Downloader:
             "logger": MyLogger(),
             "prefer_ffmpeg": True,
             # 'ffmpeg_location': './'
+            "cookiefile": "./cookies.txt",
         }
         self.ydl_opts_search = {
             "quiet": True,

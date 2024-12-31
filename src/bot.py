@@ -37,7 +37,7 @@ def main():
     # # on different commands - answer in Telegram
     application.add_handler(CommandHandler("start", handlers.start, block=False))
     application.add_handler(CommandHandler("help", handlers.help, block=False))
-
+    
     application.add_handler(CommandHandler("debug", handlers.debug, block=False))
     application.add_handler(CommandHandler("user", handlers.user, block=False))
 
@@ -52,6 +52,9 @@ def main():
     application.add_handler(
         MessageHandler(Filters.TEXT, handlers.generate_response, block=False)
     )
+    
+    # Add a handler for document uploads
+    application.add_handler(MessageHandler(Filters.Document.ALL, handlers.handle_file_upload))
 
     application.add_handler(InlineQueryHandler(handlers.inlinequery, block=False))
 

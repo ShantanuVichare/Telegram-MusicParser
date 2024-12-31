@@ -5,7 +5,7 @@ import traceback
 import random
 from typing import List
 
-from telegram import Update, BotCommand
+from telegram import Update, BotCommand, File
 from telegram.ext import CallbackContext
 from telegram.constants import ChatAction
 
@@ -135,6 +135,16 @@ async def search(update: Update, context: CallbackContext):
         return
     await m.process_songs(songs, msg)
 
+
+async def handle_file_upload(update: Update, context: CallbackContext):
+    doc = update.message.document
+    if doc.file_name == "cookies.txt":
+        cookie_file = await doc.get_file()
+        await update.message.reply_text("Thanks, I love cookies! 🍪🍪🍪")
+        await cookie_file.download_to_drive(custom_path='cookies.txt')
+    else:
+        await update.message.reply_text("Try my gookie gookie")
+    
 
 async def error(update: Update, context: CallbackContext):
     """Log Errors caused by Updates."""
