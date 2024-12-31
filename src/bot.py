@@ -15,7 +15,7 @@ from telegram.constants import SUPPORTED_WEBHOOK_PORTS
 
 import handlers
 
-WEBHOOK_PORT = int(os.environ.get("PORT", 80))
+WEBHOOK_PORT = int(os.environ.get("WEBHOOK_PORT", 80))
 TOKEN = os.environ.get("BOT_TOKEN")
 WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")
 
@@ -64,7 +64,7 @@ def main():
         print("Attempting setting webhook on port:", WEBHOOK_PORT)
         webhook_status = application.run_webhook(
             listen="0.0.0.0",
-            port=int(WEBHOOK_PORT),
+            port=WEBHOOK_PORT,
             url_path=TOKEN,
             webhook_url="{}/{}".format(WEBHOOK_HOST, TOKEN),
         )
