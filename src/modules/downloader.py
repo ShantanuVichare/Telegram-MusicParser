@@ -16,15 +16,15 @@ class Downloader:
 
         class MyLogger(object):
             def debug(self, msg):
-                # logger('DEBUG - ' + msg)
+                # logger('Downloader Debug - ' + msg)
                 pass
 
             def warning(self, msg):
-                # logger('WARN - ' + msg)
+                # logger('Downloader Warn - ' + msg)
                 pass
 
             def error(self, msg):
-                logger("ERROR - " + msg)
+                logger("Downloader Error - " + msg)
 
         self.ydl_opts_download = {
             # 'quiet': True,

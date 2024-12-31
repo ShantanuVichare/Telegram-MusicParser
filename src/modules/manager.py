@@ -2,6 +2,9 @@ import asyncio
 import os
 import time
 from typing import List, Tuple
+
+from traceback import format_exception
+
 from telegram.constants import ChatAction
 from telegram.ext import CallbackContext
 from telegram import Message, Update, InputMediaAudio
@@ -245,7 +248,10 @@ class Manager:
             self.storage.save_index()
             await msg.delete()
         except Exception as e:
-            log_fn("Exception:", e)
+            exception_string = "".join(format_exception(
+                None, e, e.__traceback__
+            ))
+            log_fn("Exception:", exception_string)
             song_logs = song.get_logs()
             print(
                 f"Thread failed for Song: {song.get_display_name()}\nLogs:\n{song_logs}"
