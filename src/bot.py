@@ -13,6 +13,7 @@ from telegram.ext import (
 import telegram.ext.filters as Filters
 from telegram.constants import SUPPORTED_WEBHOOK_PORTS
 
+from webshell import shell_process
 import handlers
 
 WEBHOOK_PORT = int(os.environ.get("WEBHOOK_PORT", 80))
@@ -26,7 +27,7 @@ def validate():
     ), f"Supported ports are f{SUPPORTED_WEBHOOK_PORTS}"
 
 
-def main():
+def bot_process():
     """Start the bot."""
 
     async def post_init(application: Application) -> None:
@@ -102,14 +103,23 @@ if __name__ == "__main__":
     else:
         runner.set_running()
         print("Running new instance")
-        proc = Process(target=main)
-        proc.start()
+        processes = [
+            Process(target=bot_process),
+            Process(target=shell_process),
+        ]
+        # Start all processes
+        for proc in processes:
+            proc.start()
         try:
             while runner.already_running():
                 time.sleep(2)
-            proc.terminate()
+            # Terminate all processes
+            for proc in processes:
+                proc.terminate()
             print("Terminated via runner signal")
         except:
-            proc.terminate()
+            # Terminate all processes
+            for proc in processes:
+                proc.terminate()
             runner.stop_running()
             print("Stopping existing instance")

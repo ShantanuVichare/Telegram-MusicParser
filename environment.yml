@@ -8,4 +8,5 @@ dependencies:
       - spotipy==2.24.0
       - python-telegram-bot[webhooks]==21.9 # reference: https://github.com/python-telegram-bot/python-telegram-bot?tab=readme-ov-file#optional-dependencies
       - yt-dlp==2024.12.23
+      - flask-socketio==5.5.0
   #     - youtube-dl
