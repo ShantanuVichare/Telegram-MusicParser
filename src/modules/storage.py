@@ -47,8 +47,11 @@ class Storage:
         self.usersfile_lock = asyncio.Lock()
         self.usersfile_path = os.path.join(self.storage_location, USERS_FILENAME)
         if os.path.exists(self.usersfile_path):
-            with open(self.usersfile_path, "w") as f:
-                self.usersdict = json.load(f)
+            try:
+                with open(self.usersfile_path, "r") as f:
+                    self.usersdict = json.load(f)
+            except:
+                self.usersdict = {}
         else:
             self.usersdict = {}
         

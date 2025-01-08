@@ -1,4 +1,5 @@
 import os
+import asyncio
 import time
 import json
 import traceback
@@ -150,12 +151,15 @@ async def handle_file_upload(update: Update, context: CallbackContext):
 
 async def error(update: Update, context: CallbackContext):
     """Log Errors caused by Updates."""
-    await update.message.reply_text("I messed up bad 😅\nPlease contact my owner")
     tb_list = traceback.format_exception(
         None, context.error, context.error.__traceback__
     )
     tb_string = "".join(tb_list)
-    print(f"Failed command: {update.message.text}\nCaused error: {tb_string}")
+    if update is None:
+        print(f"Caused error: {tb_string}")
+    else:
+        await update.message.reply_text("Sorry, I messed up something 😅")
+        print(f"Failed command: {update.message.text}\nCaused error: {tb_string}")
 
 
 async def inlinequery(update: Update, context: CallbackContext):
@@ -181,7 +185,11 @@ async def debug(update: Update, context: CallbackContext):
     debugHandler = DebugCommandHandler(Manager(update, context))
     if len(context.args) > 0:
         reply_command = debugHandler.get_reply_command(context.args[0])
-        reply_text = await reply_command(context.args[1:])
+        result = reply_command(context.args[1:])
+        if asyncio.iscoroutine(result):
+            reply_text = await result
+        else:
+            reply_text = result
         await update.message.reply_text(reply_text)
     else:
         supported_cmds = debugHandler.get_display_commands()
