@@ -3,6 +3,7 @@
 import os
 from yt_dlp import YoutubeDL
 
+from constants import TEMP_DIR
 from modules.song import Song
 
 
@@ -44,7 +45,7 @@ class Downloader:
             "logger": MyLogger(),
             "prefer_ffmpeg": True,
             # 'ffmpeg_location': './'
-            "cookiefile": "./cookies.txt",
+            "cookiefile": os.path.join(TEMP_DIR, "cookies.txt"),
         }
         self.ydl_opts_search = {
             "quiet": True,

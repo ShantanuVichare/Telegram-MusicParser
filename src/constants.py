@@ -30,3 +30,5 @@ RANDOM_RESPONSES = [
     "😐",
     "😕",
 ]
+
+TEMP_DIR = "./temp"

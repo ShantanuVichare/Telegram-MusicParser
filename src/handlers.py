@@ -9,7 +9,7 @@ from telegram import Update, BotCommand, File
 from telegram.ext import CallbackContext
 from telegram.constants import ChatAction
 
-from constants import RANDOM_RESPONSES
+from constants import RANDOM_RESPONSES, TEMP_DIR
 from modules.manager import Manager
 from modules.users import AuthManager
 
@@ -52,6 +52,8 @@ OR try the following:
                 fname
             )
         )
+    m = Manager(update, context)
+    await m.storage.add_to_usersfile(update.message.from_user.id, update.effective_chat.id)
 
 
 async def help(update: Update, context: CallbackContext):
@@ -140,8 +142,8 @@ async def handle_file_upload(update: Update, context: CallbackContext):
     doc = update.message.document
     if doc.file_name == "cookies.txt":
         cookie_file = await doc.get_file()
-        await update.message.reply_text("Thanks, I love cookies! 🍪🍪🍪")
-        await cookie_file.download_to_drive(custom_path='cookies.txt')
+        await update.message.reply_text("Thanks, I love cookies! 🍪😋")
+        await cookie_file.download_to_drive(custom_path=os.path.join(TEMP_DIR, 'cookies.txt'))
     else:
         await update.message.reply_text("Try my gookie gookie")
     
@@ -179,7 +181,7 @@ async def debug(update: Update, context: CallbackContext):
     debugHandler = DebugCommandHandler(Manager(update, context))
     if len(context.args) > 0:
         reply_command = debugHandler.get_reply_command(context.args[0])
-        reply_text = reply_command(context.args[1:])
+        reply_text = await reply_command(context.args[1:])
         await update.message.reply_text(reply_text)
     else:
         supported_cmds = debugHandler.get_display_commands()
@@ -229,6 +231,7 @@ class DebugCommandHandler:
         self.m = manager
         self.commands = {
             "list": self.list_files,
+            "logs": self.list_logs,
             "reset": self.reset_files,
             "execute": self.execute,
         }
@@ -243,7 +246,10 @@ class DebugCommandHandler:
         return os.popen(" ".join(add_args)).read()
 
     def list_files(self, add_args=None) -> str:
-        return f"Path: {self.m.storage.DOWNLOAD_PATH}\nFiles: {os.listdir(self.m.storage.DOWNLOAD_PATH)}"
+        return f"Path: {self.m.storage.get_location()}\nFiles: {os.listdir(self.m.storage.get_location())}"
+    
+    async def list_logs(self, add_args=None) -> str:
+        return f"Logs:\n{await self.m.storage.get_logs()}"
 
     def reset_files(self, add_args=None) -> str:
         self.m.storage.reset_directory()

@@ -7,7 +7,7 @@ from traceback import format_exception
 
 from telegram.constants import ChatAction
 from telegram.ext import CallbackContext
-from telegram import Message, Update, InputMediaDocument, InputMediaAudio
+from telegram import Bot, Message, Update, InputMediaDocument, InputMediaAudio
 
 from constants import (
     SPOTIFY_ALBUM,
@@ -39,7 +39,7 @@ class Manager:
         self.download_sem = asyncio.BoundedSemaphore(5)
         self.update = update
         self.context = context
-        self.upload_to_chat = upload
+        self.upload_song_to_chat = upload
         self.combine_files = False
         self.storage = Storage(storage_location=DOWNLOAD_PATH)
         self.spotify = Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
@@ -58,6 +58,8 @@ class Manager:
                     songs += [self.spotify.get_song(song_link=link)]
                 elif SPOTIFY_PLAYLIST in link:
                     songs += self.spotify.get_playlist(playlist_link=link)
+                    self.combine_files = True
+                    self.upload_song_to_chat = False
                 elif SPOTIFY_ALBUM in link:
                     songs += self.spotify.get_album(album_link=link)
                 elif (YOUTUBE_VIDEO in link) or (YOUTUBE_SHORT in link):
@@ -65,9 +67,9 @@ class Manager:
         songs = [song for song in songs if song is not None]
         if len(songs) > 0:
             msg = await self.interact(msg=msg, text=f"Processing {len(songs)} song(s)")
-        # if len(songs) > 1:
-        #     self.combine_files = True
-        #     self.upload_to_chat = False
+        if len(songs) >= 5: # If more songs, send a zip
+            self.combine_files = True
+            self.upload_song_to_chat = False
         return (songs, msg)
 
     async def process_songs(self, songs: List[Song], prev_msg: Message = None):
@@ -103,7 +105,7 @@ class Manager:
         # Ensuring completion of threads
         await task_exec_future
 
-        if self.upload_to_chat:
+        if self.upload_song_to_chat:
             incomplete_songs = [
                 song for song in songs if song.message != "Upload completed"
             ]
@@ -124,6 +126,7 @@ class Manager:
                 text="Uploading {} songs".format(len(songs) - len(incomplete_songs)),
                 action=ChatAction.UPLOAD_DOCUMENT,
                 filename=self.storage.get_zipped([song.filename for song in songs if song.message == "Download completed"]),
+                filename_rename=None if songs[0].playlist is None else songs[0].playlist + ".zip",
                 # group_filenames=[self.storage.get_filepath(song.filename) for song in songs  if song.message == "Download completed"],
             )
         else:
@@ -230,7 +233,7 @@ class Manager:
             )
 
             # Send to TG servers
-            if self.upload_to_chat:
+            if self.upload_song_to_chat:
                 msg = await self.interact(
                     msg=msg,
                     text="Uploading: " + song.get_display_name(),
@@ -248,6 +251,7 @@ class Manager:
             ))
             log_fn("Exception:", exception_string)
             song_logs = song.get_logs()
+            song_logs += f"\nException:\n{exception_string}"
             print(
                 f"Thread failed for Song: {song.get_display_name()}\nLogs:\n{song_logs}"
             )
@@ -263,40 +267,44 @@ class Manager:
         return
 
     async def interact(
-        self, msg: Message = None, text=None, action=None, filename=None, group_filenames=None,
+        self, msg: Message = None, text=None, action=None, filename=None, filename_rename=None, group_filenames=None,
     ):
+        server_bot: Bot = self.context.bot
         # self.lock.acquire()
         if msg is not None:
             if (text is not None) and (text != msg.text):
                 # print('Text:',text,'Msg.text:',msg.text)
                 msg = await msg.edit_text(text)
         elif text is not None:
-            msg = await self.context.bot.send_message(
+            msg = await server_bot.send_message(
                 chat_id=self.update.effective_chat.id, text=text,
                 disable_notification=True,
             )
 
         if action is not None:
-            await self.context.bot.send_chat_action(
+            await server_bot.send_chat_action(
                 chat_id=self.update.effective_chat.id, action=action
             )
 
         # self.lock.release()
 
         if filename:
+            if not filename_rename:
+                filename_rename = filename
             document = open(filename, "rb")
-            await self.context.bot.send_document(
+            await server_bot.send_document(
                 chat_id=self.update.effective_chat.id,
                 read_timeout=600,
                 write_timeout=600,
                 document=document,
+                filename=filename_rename,
             )
         if group_filenames:
             media=[
                 InputMediaAudio(open(filename, "rb"))
                 for filename in group_filenames
             ]
-            await self.context.bot.send_media_group(
+            await server_bot.send_media_group(
                 chat_id=self.update.effective_chat.id,
                 read_timeout=600,
                 write_timeout=600,

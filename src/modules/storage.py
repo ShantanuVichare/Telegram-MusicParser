@@ -1,25 +1,18 @@
 import os
+import uuid
 import asyncio
 from datetime import datetime, timedelta
 import json
 import zipfile
 
 from modules.song import Song
-import random
-import string
 
-LOG = "LOG"
 LOG_FILENAME = "logfile.txt"
-INDEX = "INDEX"
 INDEX_FILENAME = "index.json"
+USERS_FILENAME = "users.json"
 FILENAME_FIELD = "filename"
 TIMESTAMP_FIELD = "timestamp"
 UPLOADED_FIELD = "uploaded"
-
-
-def generate_random_string(length):
-    letters = string.ascii_letters + string.digits
-    return ''.join(random.choice(letters) for _ in range(length))
 
 
 def add_to_index(filename: str):
@@ -33,8 +26,8 @@ def add_to_index(filename: str):
 def rebuild_index(base_index={}):
     return {
         **base_index,
-        INDEX: add_to_index(INDEX_FILENAME),
-        LOG: add_to_index(INDEX_FILENAME),
+        "INDEX": add_to_index(INDEX_FILENAME),
+        "LOG": add_to_index(LOG_FILENAME),
     }
 
 
@@ -51,17 +44,42 @@ class Storage:
         self.storage_location = storage_location
         self.logfile_lock = asyncio.Lock()
         self.logfile_path = os.path.join(self.storage_location, LOG_FILENAME)
+        self.usersfile_lock = asyncio.Lock()
+        self.usersfile_path = os.path.join(self.storage_location, USERS_FILENAME)
+        if os.path.exists(self.usersfile_path):
+            with open(self.usersfile_path, "w") as f:
+                self.usersdict = json.load(f)
+        else:
+            self.usersdict = {}
+        
         self.index_path = os.path.join(self.storage_location, INDEX_FILENAME)
         if os.path.exists(self.index_path):
-            self.load_index()
+            self.index = self.load_index()
         else:
             self.index = rebuild_index()
+    
+    def get_location(self):
+        return self.storage_location
     
     async def add_to_logfile(self, log_string):
         async with self.logfile_lock:
             with open(self.logfile_path, "a", encoding="utf-8") as f:
                 f.write(log_string + "\n")
                 f.flush()
+    
+    async def get_logs(self):
+        async with self.logfile_lock:
+            with open(self.logfile_path, "r", encoding="utf-8") as f:
+                return f.read()
+    
+    async def add_to_usersfile(self, user_id, chat_id):
+        async with self.usersfile_lock:
+            if user_id not in self.usersdict:
+                self.usersdict[user_id] = [chat_id]
+            elif chat_id not in self.usersdict[user_id]:
+                self.usersdict[user_id].append(chat_id)
+            with open(self.usersfile_path, "w") as f:
+                json.dump(self.usersdict, f, indent=2)
                 
     def get_downloaded_filepaths(self):
         return [
@@ -71,8 +89,7 @@ class Storage:
 
     def load_index(self):
         with open(self.index_path, "r") as f:
-            self.index = json.load(f)
-        return
+            return json.load(f)
 
     def save_index(self):
         with open(self.index_path, "w") as f:
@@ -130,7 +147,7 @@ class Storage:
     
     def get_zipped(self, filenames):
         filepaths = [self.get_filepath(filename) for filename in filenames]
-        zip_filename = generate_random_string(10) + ".zip"
+        zip_filename = uuid.uuid4().hex + ".zip"
         zip_filename = self.get_filepath(zip_filename)
         with zipfile.ZipFile(zip_filename, "w") as zip_file:
             for filepath,filename in zip(filepaths,filenames):

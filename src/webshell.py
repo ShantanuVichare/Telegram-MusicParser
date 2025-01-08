@@ -8,7 +8,7 @@ WEBSHELL_PASSWORD = os.getenv('WEBSHELL_PASSWORD')
 
 def shell_process():
         
-    if not WEBSHELL_PASSWORD:
+    if WEBSHELL_PASSWORD is None:
         raise ValueError('WEBSHELL_PASSWORD environment variable not set')
     
     app = Flask(__name__)
@@ -23,7 +23,7 @@ def shell_process():
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if request.method == 'POST':
-            if request.form.get('password') == 'mypassword':
+            if request.form.get('password') == WEBSHELL_PASSWORD:
                 session['logged_in'] = True
                 return redirect(url_for('shell_interface'))
             return "Invalid password", 403

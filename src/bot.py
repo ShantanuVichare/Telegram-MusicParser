@@ -16,6 +16,8 @@ from telegram.constants import SUPPORTED_WEBHOOK_PORTS
 from webshell import shell_process
 import handlers
 
+from constants import TEMP_DIR
+
 WEBHOOK_PORT = int(os.environ.get("WEBHOOK_PORT", 80))
 TOKEN = os.environ.get("BOT_TOKEN")
 WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")
@@ -81,17 +83,17 @@ def bot_process():
 
 class Runner:
     def __init__(self):
-        os.makedirs("./temp", exist_ok=True)
-        self.state_fn = "./temp/_run.tmp"
+        os.makedirs(TEMP_DIR, exist_ok=True)
+        self.runfile = os.path.join(TEMP_DIR, "_run.tmp")
 
     def already_running(self):
-        return os.path.exists(self.state_fn)
+        return os.path.exists(self.runfile)
 
     def set_running(self):
-        open(self.state_fn, "a").close()
+        open(self.runfile, "a").close()
 
     def stop_running(self):
-        os.remove(self.state_fn)
+        os.remove(self.runfile)
 
 
 if __name__ == "__main__":
